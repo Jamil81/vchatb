@@ -1,0 +1,18 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+websockets>=13.1
+httpx>=0.28.0
+sqlalchemy>=2.0.0
+pydantic-settings>=2.7.0
+python-multipart>=0.0.12
+
+# Local STT
+faster-whisper>=1.1.0
+
+# Production LLM
+anthropic>=0.42.0
+
+# Production STT
+deepgram-sdk>=3.8.0
+
+# Production TTS (Cartesia uses httpx, no extra SDK needed)
