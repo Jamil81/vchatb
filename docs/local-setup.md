@@ -86,9 +86,8 @@ DATABASE_URL=sqlite:///./vchatb.db
 # Terminal 1 — Ollama (if not running as service)
 ollama serve
 
-# Terminal 2 — Backend
-cd backend
-uvicorn main:app --reload --port 8000
+# Terminal 2 — Backend (from project root)
+.\venv\Scripts\uvicorn.exe backend.main:app --reload --port 8000
 
 # Terminal 3 — Frontend
 cd frontend

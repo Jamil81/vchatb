@@ -16,16 +16,18 @@ def _get_whisper_model():
     if _whisper_model is None:
         from faster_whisper import WhisperModel
 
-        device = "cpu"
-        compute = "int8"
-        try:
-            import torch
+        device = settings.whisper_device
+        compute = "float16" if device == "cuda" else "int8"
+        if device == "cuda":
+            try:
+                import torch
 
-            if torch.cuda.is_available():
-                device = "cuda"
-                compute = "float16"
-        except ImportError:
-            pass
+                if not torch.cuda.is_available():
+                    device = "cpu"
+                    compute = "int8"
+            except ImportError:
+                device = "cpu"
+                compute = "int8"
 
         logger.info(f"Loading Whisper {settings.whisper_model} on {device}")
         _whisper_model = WhisperModel(
