@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
 import { useVoiceChat, type ConnectionState } from "@/hooks/useVoiceChat";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { SummaryPanel } from "./SummaryPanel";
 import { LatencyDisplay } from "./LatencyDisplay";
+import { JamloAvatar } from "./JamloAvatar";
 
 function ConnectionDot({ state }: { state: ConnectionState }) {
   const color = {
@@ -34,14 +34,17 @@ export function VoiceChat({ sessionId }: Props) {
     requestSummary,
   } = useVoiceChat(sessionId);
 
-  const micLabel = isListening ? "Release to send" : isProcessing ? "Processing..." : "Hold to speak";
+  const micLabel = isListening
+    ? "Release to send"
+    : isProcessing
+    ? "Processing..."
+    : "Hold to speak";
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2.5">
-          <span className="font-semibold tracking-tight">VChatBot</span>
+      <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800">
+        <div className="flex items-center gap-2">
           <ConnectionDot state={connectionState} />
           <span className="text-xs text-zinc-600 capitalize">{connectionState}</span>
         </div>
@@ -50,23 +53,55 @@ export function VoiceChat({ sessionId }: Props) {
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Transcript */}
-        <main className="flex-1 overflow-hidden p-5">
-          <TranscriptPanel
-            messages={messages}
-            currentAssistantMsg={currentAssistantMsg}
-            isProcessing={isProcessing}
-          />
-        </main>
+        {/* Left sidebar — avatar */}
+        <aside className="hidden md:flex flex-col w-64 border-r border-zinc-800 overflow-hidden flex-shrink-0">
+          <JamloAvatar isListening={isListening} isProcessing={isProcessing} />
 
-        {/* Summary sidebar */}
-        <aside className="hidden lg:flex w-64 border-l border-zinc-800 p-5 overflow-hidden">
-          <SummaryPanel summary={summary} onRefresh={requestSummary} />
+          {/* Summary below avatar on large screens */}
+          <div className="flex-1 p-4 overflow-hidden">
+            <SummaryPanel summary={summary} onRefresh={requestSummary} />
+          </div>
         </aside>
+
+        {/* Main — transcript */}
+        <main className="flex flex-col flex-1 overflow-hidden">
+          {/* Mobile avatar strip */}
+          <div className="flex md:hidden items-center gap-3 px-4 py-3 border-b border-zinc-800">
+            <div
+              className={`relative rounded-full p-0.5 flex-shrink-0 ${
+                isListening
+                  ? "bg-gradient-to-br from-red-500 to-red-700"
+                  : isProcessing
+                  ? "bg-gradient-to-br from-blue-500 to-indigo-700"
+                  : "bg-zinc-700"
+              }`}
+            >
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-zinc-950">
+                <img
+                  src="/avatar.jpeg"
+                  alt="Jamlo"
+                  className="w-full h-full object-cover object-top"
+                />
+              </div>
+            </div>
+            <div>
+              <span className="text-sm font-semibold text-zinc-100">Jamlo</span>
+              <p className="text-xs text-zinc-500">Jamil's AI Avatar</p>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-hidden p-5">
+            <TranscriptPanel
+              messages={messages}
+              currentAssistantMsg={currentAssistantMsg}
+              isProcessing={isProcessing}
+            />
+          </div>
+        </main>
       </div>
 
-      {/* Mic button */}
-      <footer className="flex flex-col items-center gap-3 py-6 border-t border-zinc-800">
+      {/* Footer — mic button */}
+      <footer className="flex flex-col items-center gap-3 py-5 border-t border-zinc-800">
         <button
           onMouseDown={startListening}
           onMouseUp={stopListening}
