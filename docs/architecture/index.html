@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>vchatb — Interactive Architecture</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+:root {
+  --bg:       #09090b;
+  --surface:  #18181b;
+  --surface2: #27272a;
+  --border:   #3f3f46;
+  --text:     #f4f4f5;
+  --muted:    #a1a1aa;
+  --dim:      #52525b;
+  --blue:     #3b82f6;
+  --green:    #22c55e;
+  --purple:   #a855f7;
+  --pink:     #ec4899;
+  --yellow:   #eab308;
+  --orange:   #f97316;
+  --red:      #ef4444;
+  --panel-w:  420px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ── Layout ── */
+.app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--surface);
+}
+header h1 { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+header p  { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+.badge {
+  font-size: 0.62rem; padding: 0.2rem 0.65rem; border-radius: 9999px;
+  background: #14532d; color: #86efac; letter-spacing: 0.06em; margin-left: 0.6rem;
+  vertical-align: middle;
+}
+.hint {
+  font-size: 0.68rem; color: var(--dim);
+  background: var(--surface2); padding: 0.35rem 0.8rem; border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+/* ── Tabs ── */
+.tabs {
+  display: flex; gap: 2px; padding: 0 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+}
+.tab-btn {
+  background: none; border: none; color: var(--dim);
+  font-family: inherit; font-size: 0.75rem;
+  padding: 0.65rem 1rem; cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.12s, border-color 0.12s;
+  margin-bottom: -1px;
+}
+.tab-btn:hover { color: var(--muted); }
+.tab-btn.active { color: var(--text); border-bottom-color: var(--blue); }
+
+/* ── Content area ── */
+.content {
+  display: flex; flex: 1; overflow: hidden;
+}
+
+.main-scroll {
+  flex: 1; overflow-y: auto; padding: 1.5rem;
+  transition: margin-right 0.25s ease;
+}
+.main-scroll.panel-open { margin-right: var(--panel-w); }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Diagram cards ── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 1.5rem; margin-bottom: 1.25rem;
+}
+.card h2 { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; }
+.card .desc { font-size: 0.72rem; color: var(--muted); margin-bottom: 1.25rem; line-height: 1.7; }
+
+.mermaid { display: flex; justify-content: center; overflow-x: auto; }
+.mermaid svg { max-width: 100%; height: auto; }
+
+/* ── Clickable node cursor ── */
+.mermaid .clickable { cursor: pointer !important; }
+.mermaid .clickable rect,
+.mermaid .clickable circle,
+.mermaid .clickable polygon { transition: opacity 0.12s; }
+.mermaid .clickable:hover rect,
+.mermaid .clickable:hover circle,
+.mermaid .clickable:hover polygon { opacity: 0.8; }
+
+/* ── Legend ── */
+.legend {
+  display: flex; flex-wrap: wrap; gap: 1rem;
+  margin-top: 1.25rem; padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.68rem; color: var(--muted); }
+.legend-dot  { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Stack table ── */
+.stack-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.stack-table th {
+  text-align: left; color: var(--dim); font-weight: 500;
+  padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border);
+  font-size: 0.65rem; letter-spacing: 0.07em; text-transform: uppercase;
+}
+.stack-table td {
+  padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border);
+  vertical-align: top; line-height: 1.5;
+}
+.stack-table tr:last-child td { border-bottom: none; }
+.stack-table td:first-child { color: var(--muted); white-space: nowrap; }
+.stack-table td:nth-child(2) { font-weight: 500; }
+.stack-table td:nth-child(3) { color: var(--muted); font-size: 0.7rem; }
+.stack-table .clickable-row { cursor: pointer; }
+.stack-table .clickable-row:hover td { background: var(--surface2); }
+
+.pill {
+  display: inline-block; font-size: 0.6rem; padding: 0.1rem 0.45rem;
+  border-radius: 4px; margin-right: 0.25rem; vertical-align: middle;
+}
+.pill-local  { background: #1c3a2a; color: #4ade80; }
+.pill-free   { background: #1e1b4b; color: #a5b4fc; }
+.pill-builtin{ background: #292524; color: #d6d3d1; }
+
+/* ── Side panel ── */
+#side-panel {
+  position: fixed; top: 0; right: 0;
+  width: var(--panel-w); height: 100vh;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  z-index: 100;
+  overflow: hidden;
+}
+#side-panel.open { transform: translateX(0); }
+
+.panel-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.panel-header-left { display: flex; align-items: center; gap: 0.75rem; }
+.panel-icon { font-size: 1.75rem; line-height: 1; }
+.panel-name { font-size: 1rem; font-weight: 700; color: var(--text); }
+.panel-tagline { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+.close-btn {
+  background: none; border: none; color: var(--dim); cursor: pointer;
+  font-size: 1.1rem; padding: 0.25rem; line-height: 1;
+  transition: color 0.12s;
+}
+.close-btn:hover { color: var(--text); }
+
+.panel-categories {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.cat-badge {
+  font-size: 0.62rem; padding: 0.2rem 0.6rem; border-radius: 9999px;
+  font-weight: 500; letter-spacing: 0.04em;
+}
+
+.panel-body { flex: 1; overflow-y: auto; padding: 1.25rem; }
+
+.panel-section { margin-bottom: 1.5rem; }
+.panel-section:last-child { margin-bottom: 0; }
+.panel-section h3 {
+  font-size: 0.65rem; font-weight: 500; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--dim);
+  margin-bottom: 0.5rem;
+}
+.panel-section p { font-size: 0.78rem; color: var(--muted); line-height: 1.7; }
+
+.code-block {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0.65rem 0.85rem;
+  font-size: 0.73rem; color: #86efac; line-height: 1.8;
+}
+.code-block span.comment { color: var(--dim); }
+
+.info-row {
+  display: flex; gap: 0.5rem; align-items: flex-start;
+  font-size: 0.76rem; color: var(--muted); margin-bottom: 0.35rem;
+}
+.info-row .label { color: var(--dim); flex-shrink: 0; min-width: 70px; }
+.info-row .value { color: var(--muted); }
+.info-row .value.highlight { color: var(--text); }
+
+.phase2-box {
+  background: #1e1b4b; border: 1px solid #312e81;
+  border-radius: 8px; padding: 0.85rem;
+}
+.phase2-box .phase2-label {
+  font-size: 0.62rem; color: #818cf8; letter-spacing: 0.08em;
+  text-transform: uppercase; margin-bottom: 0.35rem;
+}
+.phase2-box .phase2-name { font-size: 0.82rem; color: #c7d2fe; font-weight: 600; }
+.phase2-box .phase2-why  { font-size: 0.72rem; color: #818cf8; margin-top: 0.25rem; line-height: 1.6; }
+
+.panel-links { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.panel-link {
+  font-size: 0.7rem; color: var(--blue); text-decoration: none;
+  background: #1e3a5f; padding: 0.25rem 0.65rem; border-radius: 4px;
+  transition: background 0.12s;
+}
+.panel-link:hover { background: #1e40af; color: #bfdbfe; }
+
+/* ── Overlay ── */
+#overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45); z-index: 99;
+}
+#overlay.show { display: block; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div>
+      <h1>vchatb — System Architecture <span class="badge">Phase 1 · Local</span></h1>
+      <p>All services run on-machine · RTX 3050 · CUDA 12.6 · No API keys required</p>
+    </div>
+    <span class="hint">Click any node for details</span>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('arch', this)">Architecture</button>
+    <button class="tab-btn" onclick="showTab('flow', this)">Request Flow</button>
+    <button class="tab-btn" onclick="showTab('infra', this)">Infrastructure</button>
+    <button class="tab-btn" onclick="showTab('stack', this)">Stack Reference</button>
+  </div>
+
+  <div class="content">
+    <div class="main-scroll" id="main-scroll">
+
+      <!-- ══ TAB 1: ARCHITECTURE ══ -->
+      <div id="tab-arch" class="tab-panel active">
+        <div class="card">
+          <h2>Components & Data Flow</h2>
+          <p class="desc">Every component and how data moves between them — from mic capture through the STT → LLM → TTS pipeline and back to audio playback. Click any box for details.</p>
+          <div class="mermaid" id="diag-arch">
+flowchart LR
+
+  subgraph BROWSER["🌐  Browser — Next.js 14 — localhost:3000"]
+    direction TB
+    MIC["🎤 MediaRecorder\naudio capture\nwebm/opus · 250ms"]
+    WS_C["WebSocket Client\nuseVoiceChat hook"]
+    AUDIO["🔊 AudioContext\naudio playback"]
+    UI["🖼 UI Components\nJamloAvatar · Transcript\nSummary · Latency"]
+  end
+
+  subgraph BACKEND["⚙️  FastAPI Backend — Uvicorn — localhost:8000"]
+    direction TB
+    WS_S["WebSocket Handler\n/ws/{session_id}"]
+    BUF["Audio Buffer\nbytearray"]
+
+    subgraph STT_BOX["STT Layer — stt.py"]
+      WHISPER["faster-whisper\nmodel: medium\nCUDA · ~1.5GB VRAM"]
+    end
+
+    subgraph LLM_BOX["LLM Layer — llm.py"]
+      OLLAMA_C["Ollama HTTP client\nchat_stream()\nstreaming tokens"]
+    end
+
+    subgraph TTS_BOX["TTS Layer — tts.py"]
+      PIPER["Piper TTS\nen_US-amy-medium\nCPU · WAV output"]
+    end
+
+    subgraph MEM_BOX["Memory — memory.py"]
+      SQLITE[("SQLite\nvchatb.db\nsessions + messages")]
+    end
+  end
+
+  subgraph OLLAMA_SVC["🦙  Ollama — localhost:11434"]
+    MODEL["llama3.1:8b\nq4_K_M · ~5.5GB VRAM"]
+  end
+
+  subgraph GPU_BOX["🖥️  RTX 3050 — 8GB VRAM — CUDA 12.6"]
+    VRAM["~6.5 GB available\nWhisper: 1.5GB\nLlama: 5.5GB"]
+  end
+
+  MIC -->|"binary · 250ms"| WS_C
+  WS_C -->|"WebSocket"| WS_S
+  WS_S --> BUF
+  BUF -->|"end_of_speech"| WHISPER
+  WHISPER -->|"transcript text"| OLLAMA_C
+  OLLAMA_C -->|"tokens"| PIPER
+  PIPER -->|"WAV bytes"| WS_S
+  WS_S -->|"text msgs"| WS_C
+  WS_S -->|"binary WAV"| WS_C
+  WS_C --> AUDIO
+  WS_C --> UI
+  WS_S <-->|"read · write"| SQLITE
+  OLLAMA_C -->|"HTTP stream"| MODEL
+  WHISPER -. "CUDA" .-> VRAM
+  MODEL -. "CUDA" .-> VRAM
+
+  click MIC showPanel
+  click WS_C showPanel
+  click AUDIO showPanel
+  click UI showPanel
+  click WS_S showPanel
+  click BUF showPanel
+  click WHISPER showPanel
+  click OLLAMA_C showPanel
+  click PIPER showPanel
+  click SQLITE showPanel
+  click MODEL showPanel
+  click VRAM showPanel
+          </div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Browser (Next.js)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>FastAPI backend</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div>Ollama LLM service</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>GPU / CUDA</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#52525b"></div>Solid = data flow &nbsp;·&nbsp; Dashed = CUDA offload</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ TAB 2: REQUEST FLOW ══ -->
+      <div id="tab-flow" class="tab-panel">
+        <div class="card">
+          <h2>Request / Response Sequence</h2>
+          <p class="desc">One full voice turn — from mic press to audio playback. Every WebSocket message type is shown. Click any participant label for details.</p>
+          <div class="mermaid">
+sequenceDiagram
+  actor User
+  participant B as Browser
+  participant WS as FastAPI WebSocket
+  participant STT as faster-whisper
+  participant DB as SQLite
+  participant LLM as Ollama llama3.1:8b
+  participant TTS as Piper TTS
+
+  User->>B: holds mic button
+  activate B
+  loop every 250ms
+    B->>WS: binary audio chunk
+  end
+  User->>B: releases mic button
+  B->>WS: {"type":"end_of_speech"}
+  deactivate B
+
+  Note over WS: flush buffer · check size
+
+  WS->>STT: audio bytes (.webm)
+  activate STT
+  Note over STT: CUDA inference
+  STT-->>WS: transcript + stt_ms
+  deactivate STT
+
+  WS->>DB: save_message(user, transcript)
+  WS->>B: {"type":"transcript","latency_ms":280}
+
+  WS->>DB: get_history(limit=20)
+  DB-->>WS: last 20 messages
+
+  WS->>LLM: POST /v1/chat/completions stream=true
+  activate LLM
+  Note over LLM: Jamlo system prompt\n+ history + user msg
+
+  loop streaming tokens
+    LLM-->>WS: token
+    WS-->>B: {"type":"token","text":"..."}
+  end
+  deactivate LLM
+
+  WS->>DB: save_message(assistant, full_response)
+  WS->>TTS: full response text
+  activate TTS
+  TTS-->>WS: WAV bytes + tts_ms
+  deactivate TTS
+
+  WS->>B: {"type":"response_complete","latency":{...}}
+  WS->>B: binary WAV bytes
+  B->>User: plays audio
+
+  opt every 4 turns
+    WS->>LLM: summarize last 8 msgs
+    LLM-->>WS: 3-bullet summary
+    WS->>B: {"type":"summary","text":"..."}
+  end
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ TAB 3: INFRASTRUCTURE ══ -->
+      <div id="tab-infra" class="tab-panel">
+        <div class="card">
+          <h2>Local Infrastructure</h2>
+          <p class="desc">Three terminals, three ports, everything on one Windows 11 machine. Click any process or file node for details.</p>
+          <div class="mermaid">
+flowchart TD
+
+  subgraph MACHINE["💻  Windows 11 Pro · i7-10700 · 16GB RAM · J:\\laragon\\www\\bots\\vchatb\\"]
+
+    subgraph T1["Terminal 1 — always running"]
+      OLLAMA_SVC["🦙 ollama serve\nlocalhost:11434\nauto-starts after install"]
+    end
+
+    subgraph T2["Terminal 2 — backend"]
+      UVICORN_P["⚙️ uvicorn backend.main:app --reload\nlocalhost:8000\nvenv\\Scripts\\uvicorn.exe"]
+    end
+
+    subgraph T3["Terminal 3 — frontend"]
+      NEXT_P["🌐 npm run dev\nlocalhost:3000\nfrontend\\"]
+    end
+
+    subgraph GPU3["RTX 3050 · 8GB VRAM · CUDA 12.6"]
+      W_MODEL["Whisper medium\n~1.5GB VRAM"]
+      L_MODEL["llama3.1:8b q4_K_M\n~5.5GB VRAM"]
+    end
+
+    subgraph FILES["Project & Cache Files"]
+      ENV_F[".env\nconfig file"]
+      DB_F[("vchatb.db\nSQLite")]
+      PIPER_F["backend\\piper\\piper.exe\n+ voices\\*.onnx"]
+      WCACHE["~\\.cache\\huggingface\\\nWhisper medium model"]
+      LCACHE["~\\.ollama\\models\\\nllama3.1:8b weights"]
+    end
+
+    BROWSER3["Browser\nlocalhost:3000"]
+  end
+
+  BROWSER3 <-->|"WS ws://localhost:8000"| UVICORN_P
+  UVICORN_P <-->|"HTTP localhost:11434/v1"| OLLAMA_SVC
+  UVICORN_P -->|reads| ENV_F
+  UVICORN_P <--> DB_F
+  UVICORN_P -->|subprocess| PIPER_F
+  UVICORN_P -->|loads| WCACHE
+  OLLAMA_SVC -->|loads| LCACHE
+  NEXT_P --> BROWSER3
+  WCACHE -.->|CUDA| W_MODEL
+  LCACHE -.->|CUDA| L_MODEL
+
+  click OLLAMA_SVC showPanel
+  click UVICORN_P showPanel
+  click NEXT_P showPanel
+  click W_MODEL showPanel
+  click L_MODEL showPanel
+  click ENV_F showPanel
+  click DB_F showPanel
+  click PIPER_F showPanel
+  click WCACHE showPanel
+  click LCACHE showPanel
+          </div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Running processes</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div>Files on disk</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>GPU VRAM allocation</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ TAB 4: STACK ══ -->
+      <div id="tab-stack" class="tab-panel">
+        <div class="card">
+          <h2>Full Stack Reference — Phase 1 (Local)</h2>
+          <p class="desc">Every tool in the project. All free and offline after initial install. Click any row for details.</p>
+          <table class="stack-table">
+            <thead>
+              <tr><th>Layer</th><th>Tool</th><th>Purpose</th><th>Install</th></tr>
+            </thead>
+            <tbody id="stack-tbody"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h2>Phase 2 — Production Swaps (flip LOCAL_MODE=false)</h2>
+          <p class="desc">No code changes needed. Two env var changes per layer. Click any row for details.</p>
+          <table class="stack-table">
+            <thead>
+              <tr><th>Layer</th><th>Local (Phase 1)</th><th>Production (Phase 2)</th><th>Why the upgrade</th></tr>
+            </thead>
+            <tbody>
+              <tr class="clickable-row" onclick="showPanel('WHISPER')">
+                <td>STT</td><td>faster-whisper</td><td>Deepgram Nova-3</td><td>Sub-300ms, Lebanese Arabic support, no GPU needed</td>
+              </tr>
+              <tr class="clickable-row" onclick="showPanel('MODEL')">
+                <td>LLM</td><td>llama3.1:8b</td><td>Claude Haiku 4.5</td><td>Better instruction-following, $0.06/day at 200 req</td>
+              </tr>
+              <tr class="clickable-row" onclick="showPanel('PIPER')">
+                <td>TTS</td><td>Piper TTS</td><td>Cartesia Sonic-2</td><td>40ms TTFB, cloud quality, no local CPU load</td>
+              </tr>
+              <tr class="clickable-row" onclick="showPanel('SQLITE')">
+                <td>DB</td><td>SQLite</td><td>Supabase PostgreSQL</td><td>Multi-user, persistent across server restarts</td>
+              </tr>
+              <tr>
+                <td>Frontend</td><td>localhost:3000</td><td>Vercel</td><td>Free CDN, auto-deploy from GitHub, zero config</td>
+              </tr>
+              <tr>
+                <td>Backend</td><td>localhost:8000</td><td>Fly.io</td><td>Native WebSocket, no cold starts, $0/month on hobby</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /main-scroll -->
+  </div><!-- /content -->
+</div><!-- /app -->
+
+<!-- Overlay -->
+<div id="overlay" onclick="closePanel()"></div>
+
+<!-- Side panel -->
+<div id="side-panel">
+  <div class="panel-header">
+    <div class="panel-header-left">
+      <div class="panel-icon" id="p-icon"></div>
+      <div>
+        <div class="panel-name" id="p-name"></div>
+        <div class="panel-tagline" id="p-tagline"></div>
+      </div>
+    </div>
+    <button class="close-btn" onclick="closePanel()">✕</button>
+  </div>
+  <div class="panel-categories" id="p-cats"></div>
+  <div class="panel-body" id="p-body"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// COMPONENT DATA
+// ═══════════════════════════════════════════════════
+const C = {
+  MIC: {
+    icon: "🎤", name: "MediaRecorder", tagline: "Browser native audio capture API",
+    cats: [{ label: "Frontend", color: "#1e3a5f", text: "#93c5fd" }, { label: "Browser Built-in", color: "#292524", text: "#d6d3d1" }],
+    what: "The browser's native MediaRecorder API captures audio from the microphone in real time. We configure it to emit 250ms chunks of webm/opus encoded audio, which are sent immediately over the WebSocket as binary frames.",
+    install: null,
+    config: ["mimeType: 'audio/webm;codecs=opus'", "timeslice: 250 (ms per chunk)"],
+    location: "frontend/src/hooks/useVoiceChat.ts → startListening()",
+    how: "When the user holds the mic button, startListening() calls navigator.mediaDevices.getUserMedia({ audio: true }), creates a MediaRecorder, and calls recorder.start(250). The ondataavailable handler sends each chunk as a binary WebSocket message. On release, stopListening() stops the recorder and sends {type:'end_of_speech'}.",
+    why: "No library needed — it's built into every modern browser. webm/opus is small (efficient codec) and faster-whisper handles it natively via ffmpeg.",
+    phase2: null,
+    links: [{ label: "MDN — MediaRecorder", url: "https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder" }]
+  },
+  WS_C: {
+    icon: "🔌", name: "WebSocket Client", tagline: "Persistent duplex connection — useVoiceChat hook",
+    cats: [{ label: "Frontend", color: "#1e3a5f", text: "#93c5fd" }, { label: "Browser Built-in", color: "#292524", text: "#d6d3d1" }],
+    what: "The custom useVoiceChat hook manages a single WebSocket connection to the FastAPI backend at ws://localhost:8000/ws/{sessionId}. It handles both outgoing binary audio and incoming text/binary messages.",
+    install: null,
+    config: ["NEXT_PUBLIC_WS_URL=ws://localhost:8000"],
+    location: "frontend/src/hooks/useVoiceChat.ts",
+    how: "On mount, a WebSocket is opened with ws.binaryType = 'arraybuffer'. The onmessage handler checks the type: binary ArrayBuffers go to the audio queue for playback; JSON strings are parsed and routed to state setters (transcript, token, summary, latency).",
+    why: "WebSocket is required for real-time bidirectional streaming. HTTP polling would add 200-500ms per message. The hook encapsulates all socket logic so components stay declarative.",
+    phase2: "Same hook, different URL env var (wss://your-backend.fly.dev).",
+    links: [{ label: "MDN — WebSocket", url: "https://developer.mozilla.org/en-US/docs/Web/API/WebSocket" }]
+  },
+  AUDIO: {
+    icon: "🔊", name: "AudioContext", tagline: "Browser audio playback — no library",
+    cats: [{ label: "Frontend", color: "#1e3a5f", text: "#93c5fd" }, { label: "Browser Built-in", color: "#292524", text: "#d6d3d1" }],
+    what: "The Web Audio API's AudioContext decodes and plays the WAV bytes returned by the TTS layer. Audio responses are queued and played sequentially so they don't overlap.",
+    install: null,
+    config: [],
+    location: "frontend/src/hooks/useVoiceChat.ts → playNextInQueue()",
+    how: "When binary data arrives on the WebSocket, it's pushed onto audioQueueRef. playNextInQueue() calls ctx.decodeAudioData(buffer), creates a BufferSource node, connects it to the destination, and starts it. The onended callback triggers the next item in the queue.",
+    why: "Zero dependency. decodeAudioData handles WAV natively in all browsers. Queue pattern prevents overlapping responses in rapid exchanges.",
+    phase2: null,
+    links: [{ label: "MDN — AudioContext", url: "https://developer.mozilla.org/en-US/docs/Web/API/AudioContext" }]
+  },
+  UI: {
+    icon: "🖼", name: "UI Components", tagline: "Next.js 14 React components — Tailwind CSS",
+    cats: [{ label: "Frontend", color: "#1e3a5f", text: "#93c5fd" }, { label: "Next.js 14", color: "#1c2a1c", text: "#86efac" }],
+    what: "Four custom components built with React and Tailwind CSS: JamloAvatar (profile photo + animated status ring), TranscriptPanel (chat bubbles with streaming cursor), SummaryPanel (3-bullet rolling summary), LatencyDisplay (STT/LLM/TTS timing badges).",
+    install: "npm install (via package.json)",
+    config: [],
+    location: "frontend/src/components/",
+    how: "All components are client components ('use client'). State flows down from useVoiceChat hook as props. JamloAvatar reads isListening/isProcessing to animate the ring. TranscriptPanel auto-scrolls to bottom on new messages. LatencyDisplay color-codes badges yellow when above threshold.",
+    why: "Tailwind gives dark-mode UI with no CSS files. Component split keeps each concern isolated — easy to replace or restyle.",
+    phase2: null,
+    links: [{ label: "Next.js App Router", url: "https://nextjs.org/docs/app" }, { label: "Tailwind CSS", url: "https://tailwindcss.com" }]
+  },
+  WS_S: {
+    icon: "⚙️", name: "FastAPI WebSocket Handler", tagline: "Core pipeline orchestrator — main.py",
+    cats: [{ label: "Backend", color: "#1c2a1c", text: "#86efac" }, { label: "Python", color: "#1e3a5f", text: "#93c5fd" }],
+    what: "The FastAPI async WebSocket endpoint at /ws/{session_id}. It orchestrates the entire pipeline: receives audio chunks, buffers them, triggers STT on end_of_speech, streams LLM tokens back, calls TTS on the full response, and sends latency metrics.",
+    install: "pip install fastapi uvicorn[standard]",
+    config: ["Runs on port 8000", "CORS: localhost:3000 + *.vercel.app"],
+    location: "backend/main.py → voice_ws()",
+    how: "Each connected client gets its own async handler coroutine. Audio chunks accumulate in a bytearray. On {type:'end_of_speech'}: flush buffer → transcribe → save user msg → stream LLM → save assistant msg → synthesize → send audio. All awaited, non-blocking.",
+    why: "FastAPI's async WebSocket support is first-class. A single uvicorn process handles many concurrent connections without threads. Each layer (STT/LLM/TTS) is a separate module, so swapping one doesn't touch the handler.",
+    phase2: "Same handler, different .env values. LOCAL_MODE=false changes which functions stt.py, llm.py, tts.py call internally.",
+    links: [{ label: "FastAPI WebSockets", url: "https://fastapi.tiangolo.com/advanced/websockets/" }]
+  },
+  BUF: {
+    icon: "📦", name: "Audio Buffer", tagline: "In-memory accumulator for audio chunks",
+    cats: [{ label: "Backend", color: "#1c2a1c", text: "#86efac" }],
+    what: "A Python bytearray that accumulates incoming 250ms audio chunks from the browser. When end_of_speech is received, the buffer is flushed as a single audio file and passed to the STT layer.",
+    install: null,
+    config: ["Min size check: 1000 bytes (filters accidental taps)"],
+    location: "backend/main.py → voice_ws() — audio_buffer variable",
+    how: "audio_buffer.extend(data['bytes']) on each chunk. On end_of_speech: bytes(audio_buffer) creates an immutable copy, audio_buffer.clear() resets it for the next turn.",
+    why: "Simpler than streaming audio to Whisper chunk-by-chunk. faster-whisper gives better accuracy on a complete utterance than on partial frames. 250ms chunks keep the buffer small.",
+    phase2: "Same approach. Deepgram offers true real-time streaming (word-level partials) — the buffer pattern would change to streaming in Phase 2.",
+    links: []
+  },
+  WHISPER: {
+    icon: "🎙️", name: "faster-whisper", tagline: "Local speech-to-text — CUDA accelerated",
+    cats: [{ label: "STT", color: "#431407", text: "#fed7aa" }, { label: "Local · Free", color: "#14532d", text: "#86efac" }, { label: "CUDA", color: "#2d1f3b", text: "#e9d5ff" }],
+    what: "A CTranslate2-optimized reimplementation of OpenAI's Whisper ASR model. Runs 4× faster than the original with lower memory usage. Transcribes audio files to text with high accuracy.",
+    install: "pip install faster-whisper",
+    config: ["WHISPER_MODEL=medium", "WHISPER_DEVICE=cuda"],
+    location: "backend/stt.py → _transcribe_whisper()",
+    how: "Loaded once at startup as a module-level singleton (_whisper_model). On each turn: the audio buffer is written to a temp .webm file → model.transcribe(path, vad_filter=True) → segments are joined into a string → temp file deleted. VAD filter removes silence automatically.",
+    why: "Free, fully offline, no API key. Same accuracy as cloud Whisper. CUDA on RTX 3050 gives ~300ms latency on the medium model. Medium is the sweet spot: 1.5GB VRAM, strong accuracy, reasonable speed.",
+    phase2: "Deepgram Nova-3 — cloud WebSocket, sub-300ms, native Lebanese Arabic dialect support, $0.0077/min.",
+    links: [{ label: "GitHub", url: "https://github.com/SYSTRAN/faster-whisper" }, { label: "Whisper paper", url: "https://arxiv.org/abs/2212.04356" }]
+  },
+  OLLAMA_C: {
+    icon: "💬", name: "LLM Module (llm.py)", tagline: "Streaming LLM abstraction — Ollama or Claude",
+    cats: [{ label: "LLM", color: "#1c1917", text: "#d6d3d1" }, { label: "Backend", color: "#1c2a1c", text: "#86efac" }],
+    what: "The llm.py module abstracts the LLM layer. chat_stream() yields (token, ttft_ms) tuples for streaming responses. Locally it calls Ollama's OpenAI-compatible API; in production it calls Claude via the Anthropic SDK.",
+    install: "pip install httpx anthropic",
+    config: ["OLLAMA_BASE_URL=http://localhost:11434/v1", "OLLAMA_MODEL=llama3.1:8b"],
+    location: "backend/llm.py",
+    how: "Uses httpx async streaming client against Ollama's /v1/chat/completions endpoint. Parses SSE data lines, extracts token content, tracks time-to-first-token. The Jamlo system prompt is prepended to every request. History is fetched from SQLite and injected as prior messages.",
+    why: "The abstraction means zero changes to main.py when switching backends. chat_stream() is the only interface the handler calls — it doesn't know or care if it's Ollama or Claude underneath.",
+    phase2: "Claude Haiku 4.5 via anthropic.AsyncAnthropic. Same streaming interface, different env vars.",
+    links: [{ label: "Ollama API", url: "https://ollama.com/blog/openai-compatibility" }]
+  },
+  PIPER: {
+    icon: "🗣️", name: "Piper TTS", tagline: "Local neural text-to-speech — CPU, <50ms",
+    cats: [{ label: "TTS", color: "#1e3a5f", text: "#93c5fd" }, { label: "Local · Free", color: "#14532d", text: "#86efac" }],
+    what: "A fast local neural TTS engine developed by Rhasspy. Uses ONNX voice models trained on real human speech. Runs entirely on CPU — no GPU required — with sub-50ms latency.",
+    install: "Download piper_windows_amd64.zip from GitHub releases. Extract piper.exe to backend/piper/. Download .onnx + .onnx.json voice model to backend/piper/voices/.",
+    config: ["PIPER_PATH=./piper/piper.exe", "PIPER_VOICE_EN=./piper/voices/en_US-amy-medium.onnx"],
+    location: "backend/tts.py → _synthesize_piper()",
+    how: "Called as a subprocess from Python. Text is piped to stdin. Piper writes a WAV file to a temp path (--output-file). The WAV is read back as bytes and returned. Temp file is deleted. Entire process takes 30–80ms on a modern CPU.",
+    why: "Free, no API cost, no GPU required (saves VRAM for Whisper + LLM). Simple binary — just one .exe + one .onnx model file. Perfect for local dev and portfolio demos with zero running cost.",
+    phase2: "Cartesia Sonic-2 — 40ms TTFB, #1 quality ranking mid-2026, Arabic support, $0.015/1K chars.",
+    links: [{ label: "GitHub releases", url: "https://github.com/rhasspy/piper/releases" }, { label: "Voice models", url: "https://huggingface.co/rhasspy/piper-voices" }]
+  },
+  SQLITE: {
+    icon: "🗄️", name: "SQLite + SQLAlchemy", tagline: "Conversation memory — zero config, file-based",
+    cats: [{ label: "Database", color: "#292524", text: "#d6d3d1" }, { label: "Built-in", color: "#1c2a1c", text: "#86efac" }],
+    what: "SQLite stores all conversation sessions and messages. SQLAlchemy provides the ORM layer with Session and Message models. The database is a single file (vchatb.db) in the project root.",
+    install: "pip install sqlalchemy (SQLite is Python stdlib)",
+    config: ["DATABASE_URL=sqlite:///./vchatb.db"],
+    location: "backend/memory.py",
+    how: "Two tables: sessions (id, created_at, turn_count) and messages (id, session_id, role, content, created_at). get_history() returns the last 20 messages for a session, reversed so oldest is first. save_message() inserts a row. increment_turn() tracks when to trigger the summary.",
+    why: "Zero config, zero install, no running process. Single file is easy to inspect, backup, or delete. SQLAlchemy means one line change to migrate to PostgreSQL/Supabase in Phase 2.",
+    phase2: "Supabase PostgreSQL — just change DATABASE_URL. SQLAlchemy abstracts the rest.",
+    links: [{ label: "SQLAlchemy docs", url: "https://docs.sqlalchemy.org" }]
+  },
+  MODEL: {
+    icon: "🦙", name: "llama3.1:8b", tagline: "Meta's open LLM — quantized, runs on RTX 3050",
+    cats: [{ label: "LLM", color: "#1c1917", text: "#d6d3d1" }, { label: "Local · Free", color: "#14532d", text: "#86efac" }, { label: "CUDA", color: "#2d1f3b", text: "#e9d5ff" }],
+    what: "Meta's Llama 3.1 8-billion parameter instruction-tuned model, quantized to 4-bit (q4_K_M format). One of the strongest open-source models at this size. Accessed via Ollama's OpenAI-compatible REST API.",
+    install: "ollama pull llama3.1:8b",
+    config: ["OLLAMA_MODEL=llama3.1:8b", "Quantization: q4_K_M (auto-selected by Ollama)"],
+    location: "Runs as part of Ollama service at localhost:11434",
+    how: "Pulled once (~5GB download) and cached at ~/.ollama/models. Ollama loads it into VRAM on first request and keeps it hot. The backend calls /v1/chat/completions with stream:true and processes SSE tokens.",
+    why: "Best quality at 8B range. Strong instruction-following. q4_K_M quantization fits comfortably in 5.5GB VRAM, leaving 1.5GB for Whisper. Free forever — no API cost at any scale.",
+    phase2: "Claude Haiku 4.5 — $0.80/1M tokens, better instruction-following, 200K context window, faster TTFT over network.",
+    links: [{ label: "Ollama library", url: "https://ollama.com/library/llama3.1" }, { label: "Meta Llama 3.1", url: "https://ai.meta.com/blog/meta-llama-3-1/" }]
+  },
+  VRAM: {
+    icon: "🖥️", name: "RTX 3050 + CUDA 12.6", tagline: "GPU inference for Whisper and Llama",
+    cats: [{ label: "GPU", color: "#2d1f3b", text: "#e9d5ff" }, { label: "CUDA 12.6", color: "#1c1917", text: "#d6d3d1" }],
+    what: "NVIDIA GeForce RTX 3050 with 8GB GDDR6 VRAM. CUDA 12.6 is already installed (driver 560.94, confirmed via nvidia-smi). Both faster-whisper and Ollama auto-detect and use the GPU.",
+    install: "Already installed — nvidia-smi confirmed CUDA 12.6",
+    config: ["WHISPER_DEVICE=cuda", "Ollama auto-detects GPU on Windows"],
+    location: "System hardware — used by both stt.py and Ollama service",
+    how: "faster-whisper checks torch.cuda.is_available() at startup and loads the model with device='cuda', compute_type='float16'. Ollama detects CUDA automatically. Whisper medium uses ~1.5GB, llama3.1:8b uses ~5.5GB — total ~7GB, just within the 8GB limit.",
+    why: "CUDA inference is 5-10× faster than CPU for both STT and LLM. Without GPU, Whisper medium would take 3-5s per transcription and Ollama would be unusably slow for real-time voice.",
+    phase2: "Cloud APIs (Deepgram, Claude, Cartesia) run on provider's GPU — your local GPU is no longer needed.",
+    links: [{ label: "CUDA 12.6 toolkit", url: "https://developer.nvidia.com/cuda-toolkit" }]
+  },
+  OLLAMA_SVC: {
+    icon: "🦙", name: "Ollama Service", tagline: "Local LLM runner — OpenAI-compatible API",
+    cats: [{ label: "LLM", color: "#1c1917", text: "#d6d3d1" }, { label: "Local · Free", color: "#14532d", text: "#86efac" }],
+    what: "Ollama is a local LLM runner that downloads, manages, and serves open-source models. It exposes an OpenAI-compatible REST API at localhost:11434. After winget install, it runs as a background Windows service.",
+    install: "winget install Ollama.Ollama",
+    config: ["Port: 11434", "Auto-starts on Windows login after install"],
+    location: "System service — not part of the project files",
+    how: "ollama serve starts the API server (or it auto-starts). ollama pull llama3.1:8b downloads and caches the model. The FastAPI backend hits localhost:11434/v1/chat/completions exactly as it would hit OpenAI.",
+    why: "The OpenAI-compatible API means zero code changes to switch between Ollama and Claude in production — same HTTP interface, different base URL and auth header.",
+    phase2: "Removed entirely. Claude API takes over. OLLAMA_BASE_URL and OLLAMA_MODEL env vars are ignored when LOCAL_MODE=false.",
+    links: [{ label: "Ollama.com", url: "https://ollama.com" }, { label: "Model library", url: "https://ollama.com/library" }]
+  },
+  UVICORN_P: {
+    icon: "⚡", name: "Uvicorn", tagline: "ASGI server — runs FastAPI backend",
+    cats: [{ label: "Backend", color: "#1c2a1c", text: "#86efac" }, { label: "Python", color: "#1e3a5f", text: "#93c5fd" }],
+    what: "Uvicorn is a lightning-fast ASGI server for Python. It runs the FastAPI application and handles the async WebSocket connections. --reload flag watches for file changes during development.",
+    install: "pip install uvicorn[standard] (included in requirements.txt)",
+    config: ["Port: 8000", "Command: uvicorn backend.main:app --reload --port 8000"],
+    location: "Run from project root: venv\\Scripts\\uvicorn.exe backend.main:app --reload",
+    how: "Uvicorn manages the event loop and hands off requests to FastAPI. WebSocket connections are long-lived — each maps to one voice session. --reload uses watchfiles to detect code changes and restart automatically.",
+    why: "FastAPI requires an ASGI server. Uvicorn is the recommended pairing — both by FastAPI docs and the community. [standard] extras add uvloop for better async performance.",
+    phase2: "Same in production but without --reload. Railway and Fly.io run uvicorn behind their proxy.",
+    links: [{ label: "Uvicorn docs", url: "https://www.uvicorn.org" }]
+  },
+  NEXT_P: {
+    icon: "🌐", name: "Next.js 14 Dev Server", tagline: "React framework — App Router — localhost:3000",
+    cats: [{ label: "Frontend", color: "#1e3a5f", text: "#93c5fd" }, { label: "Node.js", color: "#1c2a1c", text: "#86efac" }],
+    what: "Next.js 14 with App Router. The dev server runs at localhost:3000 with hot module replacement. In production it builds to static/SSR output deployed to Vercel.",
+    install: "npm install (from frontend/ directory)",
+    config: ["NEXT_PUBLIC_WS_URL=ws://localhost:8000", "Port: 3000"],
+    location: "frontend/ — run: cd frontend && npm run dev",
+    how: "page.tsx generates a sessionId and renders <VoiceChat />. All voice logic is client-side ('use client' components). Next.js handles routing and the build pipeline. Tailwind PostCSS plugin processes utility classes.",
+    why: "App Router enables server components for any future SSR needs (e.g. loading Jamil's profile context server-side). Vercel deployment is one push — zero DevOps.",
+    phase2: "npm run build → Vercel. Same code, different env var (NEXT_PUBLIC_WS_URL points to Fly.io).",
+    links: [{ label: "Next.js docs", url: "https://nextjs.org/docs" }]
+  },
+  W_MODEL: {
+    icon: "📂", name: "Whisper Medium Model", tagline: "~1.5GB — auto-downloaded on first run",
+    cats: [{ label: "STT Model", color: "#431407", text: "#fed7aa" }, { label: "HuggingFace Cache", color: "#292524", text: "#d6d3d1" }],
+    what: "The Whisper medium model weights in CTranslate2 format. Auto-downloaded by faster-whisper on first use and cached at ~/.cache/huggingface/hub/. No manual download needed.",
+    install: "Auto-downloaded on first transcription call",
+    config: ["WHISPER_MODEL=medium", "Cache: C:\\Users\\{user}\\.cache\\huggingface\\hub\\"],
+    location: "~/.cache/huggingface/hub/ (outside project folder)",
+    how: "WhisperModel('medium', device='cuda', compute_type='float16') downloads and caches the model on first call. Subsequent starts load from cache in ~2-3 seconds.",
+    why: "Medium is the right balance for RTX 3050: 1.5GB VRAM, ~300ms latency on GPU, strong accuracy. 'tiny' is faster but noticeably worse. 'large-v3' needs 3GB+ and gains little for conversational speech.",
+    phase2: "Not needed — Deepgram Nova-3 handles STT in the cloud.",
+    links: [{ label: "Model sizes comparison", url: "https://github.com/SYSTRAN/faster-whisper#model-sizes" }]
+  },
+  L_MODEL: {
+    icon: "📂", name: "llama3.1:8b Weights", tagline: "~5GB — downloaded by ollama pull",
+    cats: [{ label: "LLM Model", color: "#1c1917", text: "#d6d3d1" }, { label: "Ollama Cache", color: "#292524", text: "#d6d3d1" }],
+    what: "The quantized llama3.1:8b model weights managed by Ollama. Stored in ~/.ollama/models/ after ollama pull. Loaded into VRAM by the Ollama service on first request.",
+    install: "ollama pull llama3.1:8b (~5GB download, one time)",
+    config: ["Cache: C:\\Users\\{user}\\.ollama\\models\\", "VRAM usage: ~5.5GB at q4_K_M"],
+    location: "~/.ollama/models/ (outside project folder)",
+    how: "Ollama downloads, quantizes if needed, and caches the model. The service loads it into GPU VRAM on first request and keeps it hot for subsequent calls. Cold start is ~3-5 seconds.",
+    why: "q4_K_M is Ollama's default quantization for llama3.1:8b — good quality/size tradeoff. 8B fits in 5.5GB VRAM leaving room for Whisper.",
+    phase2: "Not needed — Claude API handles LLM in the cloud.",
+    links: [{ label: "Ollama pull docs", url: "https://ollama.com/library/llama3.1" }]
+  },
+  ENV_F: {
+    icon: "⚙️", name: ".env Config File", tagline: "Runtime configuration — never commit this",
+    cats: [{ label: "Config", color: "#292524", text: "#d6d3d1" }],
+    what: "The .env file at the project root holds all runtime configuration. It's read by pydantic-settings into the Settings class in backend/config.py. The .gitignore excludes it from version control.",
+    install: "copy .env.example .env (done by setup.ps1)",
+    config: ["LOCAL_MODE=true", "All service URLs and API keys"],
+    location: "J:\\laragon\\www\\bots\\vchatb\\.env",
+    how: "pydantic-settings reads the .env file on startup via SettingsConfigDict(env_file=...). config.py resolves relative Piper paths to absolute paths using a @model_validator. Any env var can also be set as a real environment variable (overrides .env).",
+    why: "Single place to switch between local and production. Flip LOCAL_MODE=false and set the three API keys — the entire stack upgrades with no code changes.",
+    phase2: "Same file, different values: LOCAL_MODE=false, add ANTHROPIC_API_KEY, DEEPGRAM_API_KEY, CARTESIA_API_KEY.",
+    links: []
+  },
+  DB_F: {
+    icon: "🗄️", name: "vchatb.db (SQLite)", tagline: "Conversation history — single file database",
+    cats: [{ label: "Database", color: "#292524", text: "#d6d3d1" }, { label: "Auto-created", color: "#14532d", text: "#86efac" }],
+    what: "The SQLite database file created automatically on first backend start. Contains two tables: sessions (tracks turn count per session) and messages (full conversation history with role + content + timestamp).",
+    install: "Auto-created by SQLAlchemy on startup via Base.metadata.create_all()",
+    config: ["DATABASE_URL=sqlite:///./vchatb.db", "Location: project root"],
+    location: "J:\\laragon\\www\\bots\\vchatb\\vchatb.db",
+    how: "SQLAlchemy creates the file and tables on first run. Each WebSocket session gets a session row. Every user message and assistant response is saved. get_history() queries the last 20 messages to build LLM context.",
+    why: "Zero setup. Inspect it with any SQLite viewer (DB Browser for SQLite is free). Delete it to reset all conversation history.",
+    phase2: "DATABASE_URL switches to Supabase PostgreSQL connection string. Zero code changes — SQLAlchemy handles both.",
+    links: [{ label: "DB Browser for SQLite", url: "https://sqlitebrowser.org" }]
+  },
+  PIPER_F: {
+    icon: "🗣️", name: "Piper Binary + Voice Models", tagline: "piper.exe + .onnx files — backend/piper/",
+    cats: [{ label: "TTS", color: "#1e3a5f", text: "#93c5fd" }, { label: "Local Files", color: "#292524", text: "#d6d3d1" }],
+    what: "The Piper TTS executable (piper.exe) and the ONNX voice model files. Must be manually downloaded and placed in backend/piper/. Not included in the repository.",
+    install: "1. Download piper_windows_amd64.zip from github.com/rhasspy/piper/releases\n2. Extract piper.exe to backend/piper/\n3. Download en_US-amy-medium.onnx + .onnx.json from huggingface.co/rhasspy/piper-voices\n4. Place in backend/piper/voices/",
+    config: ["PIPER_PATH=./piper/piper.exe", "PIPER_VOICE_EN=./piper/voices/en_US-amy-medium.onnx"],
+    location: "backend/piper/piper.exe + backend/piper/voices/*.onnx",
+    how: "tts.py runs piper.exe as a subprocess: text on stdin → WAV file written to temp path. The .onnx.json config file must sit next to the .onnx model file (Piper reads it automatically).",
+    why: "Piper is just a binary + model file — no install, no dependencies, no PATH setup beyond pointing the env var at the exe.",
+    phase2: "Removed — Cartesia Sonic-2 handles TTS via HTTPS. No local binary needed.",
+    links: [{ label: "Piper releases", url: "https://github.com/rhasspy/piper/releases" }, { label: "Voice models", url: "https://huggingface.co/rhasspy/piper-voices" }]
+  },
+  WCACHE: {
+    icon: "💾", name: "Whisper Model Cache", tagline: "HuggingFace cache — auto-managed",
+    cats: [{ label: "STT Model", color: "#431407", text: "#fed7aa" }],
+    what: "faster-whisper stores downloaded model weights in the HuggingFace cache directory. The medium model is ~1.5GB on disk. Downloaded once, used forever.",
+    install: "Auto-downloaded on first run",
+    config: ["Default cache: C:\\Users\\{user}\\.cache\\huggingface\\hub\\"],
+    location: "~/.cache/huggingface/hub/models--Systran--faster-whisper-medium/",
+    how: "WhisperModel('medium') checks the cache first. If missing, downloads from HuggingFace automatically. Subsequent starts load from disk in ~2s.",
+    why: null,
+    phase2: "Not needed in production.",
+    links: []
+  },
+  LCACHE: {
+    icon: "💾", name: "Ollama Model Cache", tagline: "Ollama stores model weights here",
+    cats: [{ label: "LLM Model", color: "#1c1917", text: "#d6d3d1" }],
+    what: "Ollama's local model registry. ollama pull downloads model weights here. The Ollama service loads them from this cache into VRAM on startup.",
+    install: "ollama pull llama3.1:8b (~5GB, one time)",
+    config: ["Default: C:\\Users\\{user}\\.ollama\\models\\"],
+    location: "~/.ollama/models/",
+    how: "Managed entirely by Ollama. List cached models: ollama list. Remove: ollama rm modelname.",
+    why: null,
+    phase2: "Not needed in production.",
+    links: []
+  }
+};
+
+// ═══════════════════════════════════════════════════
+// STACK TABLE DATA
+// ═══════════════════════════════════════════════════
+const STACK_ROWS = [
+  { layer:"Frontend", id:"MIC",       name:"MediaRecorder API",    purpose:"Browser mic capture — webm/opus 250ms chunks",       install:"Built-in browser",   pill:"builtin" },
+  { layer:"Frontend", id:"WS_C",      name:"WebSocket API",        purpose:"Persistent duplex connection to backend",            install:"Built-in browser",   pill:"builtin" },
+  { layer:"Frontend", id:"AUDIO",     name:"AudioContext API",      purpose:"Decode and play WAV audio from TTS",                 install:"Built-in browser",   pill:"builtin" },
+  { layer:"Frontend", id:"UI",        name:"Next.js 14 + React 18", purpose:"App Router, SSR, component framework",              install:"npm install",        pill:"free" },
+  { layer:"Frontend", id:"UI",        name:"Tailwind CSS 3",        purpose:"Utility-first styling, dark mode UI",               install:"npm install",        pill:"free" },
+  { layer:"Backend",  id:"WS_S",      name:"FastAPI",               purpose:"Async WebSocket handler, REST /health endpoint",     install:"pip install fastapi",pill:"free" },
+  { layer:"Backend",  id:"UVICORN_P", name:"Uvicorn [standard]",    purpose:"ASGI server — runs FastAPI",                        install:"pip install uvicorn[standard]", pill:"free" },
+  { layer:"Backend",  id:"WS_S",      name:"pydantic-settings",     purpose:"Reads .env into typed Settings class",              install:"pip install pydantic-settings", pill:"free" },
+  { layer:"Backend",  id:"WS_S",      name:"httpx",                 purpose:"Async HTTP client — Ollama streaming calls",        install:"pip install httpx",  pill:"free" },
+  { layer:"STT",      id:"WHISPER",   name:"faster-whisper",        purpose:"Local ASR — CTranslate2 Whisper on CUDA",           install:"pip install faster-whisper", pill:"free" },
+  { layer:"STT",      id:"W_MODEL",   name:"Whisper medium model",  purpose:"~1.5GB VRAM · auto-downloaded on first run",        install:"Auto via HuggingFace", pill:"local" },
+  { layer:"LLM",      id:"OLLAMA_SVC",name:"Ollama",                purpose:"Local LLM runner — OpenAI-compatible API :11434",   install:"winget install Ollama.Ollama", pill:"free" },
+  { layer:"LLM",      id:"MODEL",     name:"llama3.1:8b (q4_K_M)", purpose:"~5.5GB VRAM · instruction-tuned open LLM",          install:"ollama pull llama3.1:8b", pill:"free" },
+  { layer:"TTS",      id:"PIPER_F",   name:"Piper TTS",             purpose:"Local neural TTS — CPU, <50ms, WAV output",         install:"Download from GitHub releases", pill:"free" },
+  { layer:"TTS",      id:"PIPER_F",   name:"en_US-amy-medium.onnx", purpose:"English voice model — 65MB ONNX file",             install:"Download from HuggingFace", pill:"free" },
+  { layer:"Database", id:"DB_F",      name:"SQLite",                purpose:"File-based DB — sessions + conversation history",   install:"Python stdlib built-in", pill:"builtin" },
+  { layer:"Database", id:"SQLITE",    name:"SQLAlchemy 2.0",        purpose:"ORM — Session + Message models, async-safe",        install:"pip install sqlalchemy", pill:"free" },
+  { layer:"GPU",      id:"VRAM",      name:"CUDA 12.6",             purpose:"GPU inference for Whisper + Ollama",                install:"Already installed (driver 560.94)", pill:"local" },
+];
+
+// ═══════════════════════════════════════════════════
+// RENDER STACK TABLE
+// ═══════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  const tbody = document.getElementById('stack-tbody');
+  STACK_ROWS.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.className = 'clickable-row';
+    tr.onclick = () => showPanel(r.id);
+    const pillClass = r.pill === 'free' ? 'pill-free' : r.pill === 'local' ? 'pill-local' : 'pill-builtin';
+    const pillLabel = r.pill === 'free' ? 'free' : r.pill === 'local' ? 'local' : 'built-in';
+    tr.innerHTML = `
+      <td>${r.layer}</td>
+      <td>${r.name} <span class="pill ${pillClass}">${pillLabel}</span></td>
+      <td>${r.purpose}</td>
+      <td>${r.install}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+});
+
+// ═══════════════════════════════════════════════════
+// PANEL LOGIC
+// ═══════════════════════════════════════════════════
+window.showPanel = function(id) {
+  const d = C[id];
+  if (!d) return;
+
+  document.getElementById('p-icon').textContent = d.icon;
+  document.getElementById('p-name').textContent = d.name;
+  document.getElementById('p-tagline').textContent = d.tagline;
+
+  // Categories
+  const catsEl = document.getElementById('p-cats');
+  catsEl.innerHTML = d.cats.map(c =>
+    `<span class="cat-badge" style="background:${c.color};color:${c.text}">${c.label}</span>`
+  ).join('');
+
+  // Body
+  let html = '';
+
+  html += section('What it is', `<p>${d.what}</p>`);
+
+  if (d.install) {
+    html += section('Installation',
+      `<div class="code-block">${d.install.replace(/\n/g, '<br>')}</div>`);
+  }
+
+  html += section('How it runs in this project', `<p>${d.how}</p>`);
+
+  if (d.config && d.config.length > 0) {
+    html += section('.env config',
+      `<div class="code-block">${d.config.join('<br>')}</div>`);
+  }
+
+  html += section('File / location',
+    `<div class="code-block">${d.location}</div>`);
+
+  if (d.why) {
+    html += section('Why this was chosen', `<p>${d.why}</p>`);
+  }
+
+  if (d.phase2) {
+    html += section('Phase 2 replacement',
+      `<div class="phase2-box">
+        <div class="phase2-label">Production upgrade</div>
+        <div class="phase2-why">${d.phase2}</div>
+      </div>`);
+  }
+
+  if (d.links && d.links.length > 0) {
+    html += section('Links',
+      `<div class="panel-links">${d.links.map(l =>
+        `<a class="panel-link" href="${l.url}" target="_blank" rel="noopener">${l.label} ↗</a>`
+      ).join('')}</div>`);
+  }
+
+  document.getElementById('p-body').innerHTML = html;
+
+  document.getElementById('side-panel').classList.add('open');
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('main-scroll').classList.add('panel-open');
+};
+
+function section(title, content) {
+  return `<div class="panel-section"><h3>${title}</h3>${content}</div>`;
+}
+
+window.closePanel = function() {
+  document.getElementById('side-panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('main-scroll').classList.remove('panel-open');
+};
+
+// ═══════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════
+window.showTab = function(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+};
+
+// ═══════════════════════════════════════════════════
+// MERMAID
+// ═══════════════════════════════════════════════════
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  securityLevel: 'loose',
+  themeVariables: {
+    background:         '#18181b',
+    primaryColor:       '#1e3a5f',
+    primaryTextColor:   '#f4f4f5',
+    primaryBorderColor: '#3b82f6',
+    lineColor:          '#52525b',
+    secondaryColor:     '#1a2e1a',
+    tertiaryColor:      '#2d1f3b',
+    clusterBkg:         '#27272a',
+    clusterBorder:      '#3f3f46',
+    titleColor:         '#f4f4f5',
+    edgeLabelBackground:'#18181b',
+    fontFamily:         'ui-monospace, monospace',
+    fontSize:           '12px',
+  },
+  flowchart: { curve: 'basis', padding: 24 },
+  sequence: {
+    actorFontFamily: 'ui-monospace, monospace',
+    messageFontFamily: 'ui-monospace, monospace',
+    noteFontFamily: 'ui-monospace, monospace',
+  },
+});
+</script>
+</body>
+</html>

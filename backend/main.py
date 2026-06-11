@@ -55,6 +55,9 @@ async def voice_ws(websocket: WebSocket, session_id: str):
         while True:
             data = await websocket.receive()
 
+            if data.get("type") == "websocket.disconnect":
+                break
+
             if "bytes" in data:
                 audio_buffer.extend(data["bytes"])
 

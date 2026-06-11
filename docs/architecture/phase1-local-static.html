@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>vchatb — Architecture (Phase 1: Local)</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #09090b;
+    --surface: #18181b;
+    --border: #27272a;
+    --text: #f4f4f5;
+    --muted: #71717a;
+    --accent: #3b82f6;
+    --green: #22c55e;
+    --yellow: #eab308;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  header {
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+  }
+
+  header h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  header p {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 0.4rem;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    background: #166534;
+    color: #86efac;
+    margin-left: 0.75rem;
+    vertical-align: middle;
+    letter-spacing: 0.05em;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.8rem;
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    margin-bottom: -1px;
+  }
+
+  .tab-btn:hover { color: var(--text); }
+
+  .tab-btn.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Diagram cards */
+  .diagram-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .diagram-card h2 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.4rem;
+  }
+
+  .diagram-card p {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+  }
+
+  .mermaid {
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* Stack table */
+  .stack-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    margin-top: 1rem;
+  }
+
+  .stack-table th {
+    text-align: left;
+    color: var(--muted);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .stack-table td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+
+  .stack-table tr:last-child td { border-bottom: none; }
+
+  .stack-table td:first-child { color: var(--muted); width: 110px; }
+  .stack-table td:nth-child(2) { color: var(--text); font-weight: 500; }
+  .stack-table td:nth-child(3) { color: var(--muted); font-size: 0.72rem; }
+
+  .pill {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    margin-right: 0.3rem;
+  }
+
+  .pill-local { background: #1c3a2a; color: #4ade80; }
+  .pill-free  { background: #1e1b4b; color: #a5b4fc; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>vchatb — System Architecture <span class="badge">Phase 1 · Local</span></h1>
+  <p>All services run on-machine. No API keys required. RTX 3050 handles STT + LLM inference via CUDA 12.6.</p>
+</header>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('arch')">Architecture</button>
+  <button class="tab-btn" onclick="showTab('flow')">Request Flow</button>
+  <button class="tab-btn" onclick="showTab('infra')">Infrastructure</button>
+  <button class="tab-btn" onclick="showTab('stack')">Stack Reference</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB 1 — ARCHITECTURE
+═══════════════════════════════════════════════════ -->
+<div id="tab-arch" class="tab-panel active">
+  <div class="diagram-card">
+    <h2>System Components & Data Flow</h2>
+    <p>Shows every component in the system and how data moves between them — from microphone capture through the STT → LLM → TTS pipeline and back to audio playback in the browser.</p>
+
+    <div class="mermaid">
+flowchart LR
+
+  subgraph BROWSER["🌐  Browser  ·  Next.js 14  ·  localhost:3000"]
+    direction TB
+    MIC["🎤 Microphone\nMediaRecorder\nwebm/opus · 250ms chunks"]
+    WS_C["WebSocket Client\nuseVoiceChat hook"]
+    AUDIO["🔊 AudioContext\naudio playback"]
+    UI["UI Components\nTranscriptPanel\nSummaryPanel\nLatencyDisplay\nJamloAvatar"]
+  end
+
+  subgraph BACKEND["⚙️  FastAPI Backend  ·  Uvicorn  ·  localhost:8000"]
+    direction TB
+    WS_S["WebSocket Handler\n/ws/{session_id}"]
+    BUF["Audio Buffer\nbytearray accumulator"]
+
+    subgraph STT_BOX["STT Layer  ·  stt.py"]
+      WHISPER["faster-whisper\nmodel: medium\ndevice: CUDA"]
+    end
+
+    subgraph LLM_BOX["LLM Layer  ·  llm.py"]
+      OLLAMA_C["Ollama client\nchat_stream()"]
+    end
+
+    subgraph TTS_BOX["TTS Layer  ·  tts.py"]
+      PIPER["Piper TTS\nen_US-amy-medium.onnx\noutput: WAV"]
+    end
+
+    subgraph MEM_BOX["Memory  ·  memory.py"]
+      SQLITE[("SQLite\nvchatb.db\nsessions + messages")]
+    end
+  end
+
+  subgraph OLLAMA_SVC["🦙  Ollama Service  ·  localhost:11434"]
+    MODEL["llama3.1:8b\nq4_K_M · ~5.5GB VRAM"]
+  end
+
+  subgraph GPU["🖥️  RTX 3050  ·  8GB VRAM  ·  CUDA 12.6"]
+    VRAM["~6.5 GB free for inference\nWhisper medium: ~1.5GB\nllama3.1:8b: ~5.5GB"]
+  end
+
+  MIC -->|"binary frames\n250ms"| WS_C
+  WS_C -->|"WebSocket\nbinary"| WS_S
+  WS_S --> BUF
+  BUF -->|"end_of_speech\naudio bytes"| WHISPER
+  WHISPER -->|"transcript text"| OLLAMA_C
+  OLLAMA_C -->|"streaming tokens"| PIPER
+  PIPER -->|"WAV bytes"| WS_S
+  WS_S -->|"transcript msg\ntoken msgs\nlatency msg\nsummary msg"| WS_C
+  WS_S -->|"binary WAV"| WS_C
+  WS_C --> AUDIO
+  WS_C --> UI
+  WS_S <-->|"read history\nwrite messages"| SQLITE
+  OLLAMA_C -->|"HTTP /v1/chat/completions\nstreaming"| MODEL
+  WHISPER -.->|"CUDA inference"| VRAM
+  MODEL -.->|"CUDA inference"| VRAM
+
+  classDef browser fill:#1e3a5f,stroke:#3b82f6,color:#bfdbfe
+  classDef backend fill:#1a2e1a,stroke:#22c55e,color:#bbf7d0
+  classDef gpu fill:#3b1f2b,stroke:#ec4899,color:#fbcfe8
+  classDef ollama fill:#2d1f3b,stroke:#a855f7,color:#e9d5ff
+  class MIC,WS_C,AUDIO,UI browser
+  class WS_S,BUF,WHISPER,OLLAMA_C,PIPER,SQLITE backend
+  class VRAM gpu
+  class MODEL ollama
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Browser layer</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> FastAPI backend</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div> Ollama (LLM service)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div> GPU / CUDA</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#52525b"></div> Solid line = data flow &nbsp;|&nbsp; Dashed = CUDA offload</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB 2 — REQUEST FLOW (SEQUENCE)
+═══════════════════════════════════════════════════ -->
+<div id="tab-flow" class="tab-panel">
+  <div class="diagram-card">
+    <h2>Request / Response Sequence</h2>
+    <p>Step-by-step timeline of a single voice turn — from the user pressing the mic button to hearing the spoken response. Shows every message type over the WebSocket.</p>
+
+    <div class="mermaid">
+sequenceDiagram
+  actor User
+  participant B as Browser
+  participant WS as FastAPI WebSocket
+  participant STT as faster-whisper
+  participant DB as SQLite
+  participant LLM as Ollama llama3.1:8b
+  participant TTS as Piper TTS
+
+  User->>B: holds mic button
+  activate B
+  loop every 250ms
+    B->>WS: binary audio chunk (webm/opus)
+  end
+  User->>B: releases mic button
+  B->>WS: {"type":"end_of_speech"}
+  deactivate B
+
+  Note over WS: flush audio buffer
+
+  WS->>STT: audio bytes (.webm)
+  activate STT
+  Note over STT: CUDA inference
+  STT-->>WS: transcript text + stt_ms
+  deactivate STT
+
+  WS->>DB: save_message(user, transcript)
+  WS->>B: {"type":"transcript","text":"...","latency_ms":280}
+
+  WS->>DB: get_history(session_id, limit=20)
+  DB-->>WS: last 20 messages
+
+  WS->>LLM: POST /v1/chat/completions (stream=true)\nSystem: Jamlo persona\n+ history + user message
+  activate LLM
+  Note over LLM: CUDA inference\nllama3.1:8b q4_K_M
+
+  loop streaming tokens (TTFT ~400ms)
+    LLM-->>WS: token chunk
+    WS-->>B: {"type":"token","text":"..."}
+  end
+  deactivate LLM
+
+  Note over WS: full response assembled
+
+  WS->>DB: save_message(assistant, full_response)
+  WS->>TTS: full_response text
+  activate TTS
+  TTS-->>WS: WAV bytes (22050Hz mono 16-bit) + tts_ms
+  deactivate TTS
+
+  WS->>B: {"type":"response_complete","latency":{stt_ms,llm_ttft_ms,tts_ms,total_ms}}
+  WS->>B: binary WAV bytes
+  B->>User: plays audio response
+
+  alt every 4 turns
+    WS->>LLM: summarize last 8 messages
+    LLM-->>WS: 3-bullet summary text
+    WS->>B: {"type":"summary","text":"..."}
+    B->>B: update SummaryPanel
+  end
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB 3 — INFRASTRUCTURE
+═══════════════════════════════════════════════════ -->
+<div id="tab-infra" class="tab-panel">
+  <div class="diagram-card">
+    <h2>Local Infrastructure</h2>
+    <p>All processes run on the same Windows 11 machine. Three terminal windows, three ports. Ollama runs as a background service after install.</p>
+
+    <div class="mermaid">
+flowchart TD
+
+  subgraph MACHINE["💻  Windows 11 Pro  ·  i7-10700  ·  16GB RAM"]
+
+    subgraph T1["Terminal 1"]
+      OLLAMA_P["ollama serve\n:11434\nauto-starts on install"]
+    end
+
+    subgraph T2["Terminal 2"]
+      UVICORN_P["uvicorn backend.main:app --reload\n:8000\nvenv\\Scripts\\uvicorn.exe"]
+    end
+
+    subgraph T3["Terminal 3"]
+      NEXT_P["npm run dev\n:3000\nfrontend\\"]
+    end
+
+    subgraph GPU2["RTX 3050  ·  8GB VRAM  ·  CUDA 12.6"]
+      W_MODEL["Whisper medium\n~1.5GB"]
+      L_MODEL["llama3.1:8b q4_K_M\n~5.5GB"]
+    end
+
+    subgraph FILES["Project Files  ·  J:\\laragon\\www\\bots\\vchatb\\"]
+      ENV_F[".env"]
+      DB_F[("vchatb.db\nSQLite")]
+      PIPER_F["backend\\piper\\piper.exe\nbackend\\piper\\voices\\*.onnx"]
+      WHISPER_CACHE["~/.cache\\huggingface\\\nfaster_whisper\\\nmedium"]
+      OLLAMA_CACHE["~\\.ollama\\models\\\nllama3.1-8b"]
+    end
+
+    BROWSER2["Browser\nlocalhost:3000"]
+  end
+
+  BROWSER2 <-->|"WS ws://localhost:8000"| UVICORN_P
+  UVICORN_P <-->|"HTTP localhost:11434/v1"| OLLAMA_P
+  UVICORN_P -->|"reads"| ENV_F
+  UVICORN_P <-->|"read/write"| DB_F
+  UVICORN_P -->|"subprocess"| PIPER_F
+  UVICORN_P -->|"loads model"| WHISPER_CACHE
+  OLLAMA_P -->|"loads model"| OLLAMA_CACHE
+  NEXT_P -->|"serves"| BROWSER2
+  WHISPER_CACHE -.->|"CUDA"| W_MODEL
+  OLLAMA_CACHE -.->|"CUDA"| L_MODEL
+
+  classDef terminal fill:#1c2a1c,stroke:#22c55e,color:#bbf7d0
+  classDef file fill:#1e1b2e,stroke:#6366f1,color:#c7d2fe
+  classDef gpu2 fill:#2d1f3b,stroke:#ec4899,color:#fbcfe8
+  class OLLAMA_P,UVICORN_P,NEXT_P terminal
+  class ENV_F,DB_F,PIPER_F,WHISPER_CACHE,OLLAMA_CACHE file
+  class W_MODEL,L_MODEL gpu2
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Running processes (terminals)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div> Files on disk</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div> GPU VRAM usage</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB 4 — STACK REFERENCE
+═══════════════════════════════════════════════════ -->
+<div id="tab-stack" class="tab-panel">
+  <div class="diagram-card">
+    <h2>Third-Party Stack — Phase 1 (Local)</h2>
+    <p>Every external tool used in Phase 1. All free and offline after initial download.</p>
+
+    <table class="stack-table">
+      <thead>
+        <tr>
+          <th>Layer</th>
+          <th>Tool</th>
+          <th>What It Does</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Frontend</td>
+          <td>Next.js 14 <span class="pill pill-free">free</span></td>
+          <td>React framework with App Router. SSR for panels. Dev server at :3000.</td>
+          <td>npm</td>
+        </tr>
+        <tr>
+          <td>Frontend</td>
+          <td>Tailwind CSS 3 <span class="pill pill-free">free</span></td>
+          <td>Utility-first CSS. All UI styling.</td>
+          <td>npm</td>
+        </tr>
+        <tr>
+          <td>Transport</td>
+          <td>WebSocket (native) <span class="pill pill-local">built-in</span></td>
+          <td>Browser WebSocket API for audio streaming. No library needed.</td>
+          <td>browser</td>
+        </tr>
+        <tr>
+          <td>Backend</td>
+          <td>FastAPI <span class="pill pill-free">free</span></td>
+          <td>Python async web framework. WebSocket handlers, REST health endpoint.</td>
+          <td>pip</td>
+        </tr>
+        <tr>
+          <td>Backend</td>
+          <td>Uvicorn <span class="pill pill-free">free</span></td>
+          <td>ASGI server. Runs FastAPI with --reload for dev.</td>
+          <td>pip</td>
+        </tr>
+        <tr>
+          <td>Backend</td>
+          <td>pydantic-settings <span class="pill pill-free">free</span></td>
+          <td>Reads .env file into typed Settings class. LOCAL_MODE switch.</td>
+          <td>pip</td>
+        </tr>
+        <tr>
+          <td>STT</td>
+          <td>faster-whisper <span class="pill pill-free">free</span></td>
+          <td>CTranslate2-optimised Whisper. Runs on CUDA. Transcribes webm audio to text.</td>
+          <td>pip</td>
+        </tr>
+        <tr>
+          <td>STT</td>
+          <td>Whisper medium model <span class="pill pill-free">free</span></td>
+          <td>~1.5GB VRAM. Auto-downloaded on first run to ~/.cache/huggingface.</td>
+          <td>HuggingFace</td>
+        </tr>
+        <tr>
+          <td>LLM</td>
+          <td>Ollama <span class="pill pill-free">free</span></td>
+          <td>Local LLM runner. Exposes OpenAI-compatible API at :11434. CUDA-accelerated.</td>
+          <td>winget</td>
+        </tr>
+        <tr>
+          <td>LLM</td>
+          <td>llama3.1:8b (q4_K_M) <span class="pill pill-free">free</span></td>
+          <td>~5.5GB VRAM. Meta's Llama 3.1 quantised. Pulled via ollama pull.</td>
+          <td>Ollama registry</td>
+        </tr>
+        <tr>
+          <td>TTS</td>
+          <td>Piper TTS <span class="pill pill-free">free</span></td>
+          <td>Local neural TTS. Runs on CPU. Under 50ms latency. Outputs WAV.</td>
+          <td>GitHub releases</td>
+        </tr>
+        <tr>
+          <td>TTS</td>
+          <td>en_US-amy-medium.onnx <span class="pill pill-free">free</span></td>
+          <td>Piper voice model. ONNX format. ~65MB. English US female voice.</td>
+          <td>HuggingFace</td>
+        </tr>
+        <tr>
+          <td>Database</td>
+          <td>SQLite <span class="pill pill-local">built-in</span></td>
+          <td>File-based DB. Stores sessions and conversation history. Zero config.</td>
+          <td>Python stdlib</td>
+        </tr>
+        <tr>
+          <td>Database</td>
+          <td>SQLAlchemy <span class="pill pill-free">free</span></td>
+          <td>ORM layer over SQLite. Session, Message models. Async-safe.</td>
+          <td>pip</td>
+        </tr>
+        <tr>
+          <td>HTTP client</td>
+          <td>httpx <span class="pill pill-free">free</span></td>
+          <td>Async HTTP. Used by llm.py for Ollama streaming. Ready for Cartesia in Phase 2.</td>
+          <td>pip</td>
+        </tr>
+        <tr>
+          <td>GPU</td>
+          <td>CUDA 12.6 <span class="pill pill-local">installed</span></td>
+          <td>Already on machine (confirmed via nvidia-smi). Used by Whisper + Ollama.</td>
+          <td>NVIDIA driver 560.94</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="diagram-card">
+    <h2>Phase 2 Preview — Production Swaps</h2>
+    <p>Flip <code>LOCAL_MODE=false</code> in .env and these replace the local tools. No code changes needed.</p>
+    <table class="stack-table">
+      <thead>
+        <tr><th>Layer</th><th>Replaces</th><th>With</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>STT</td><td>faster-whisper</td><td>Deepgram Nova-3</td><td>Sub-300ms, Lebanese Arabic dialect support</td></tr>
+        <tr><td>LLM</td><td>Ollama / llama3.1:8b</td><td>Claude Haiku 4.5</td><td>Better instruction following, $0.06/day at 200 req</td></tr>
+        <tr><td>TTS</td><td>Piper TTS</td><td>Cartesia Sonic-2</td><td>40ms TTFB, #1 quality ranking mid-2026</td></tr>
+        <tr><td>DB</td><td>SQLite</td><td>Supabase PostgreSQL</td><td>Multi-user, persistent across deploys</td></tr>
+        <tr><td>Frontend</td><td>localhost:3000</td><td>Vercel</td><td>Free, global CDN, auto-deploy from GitHub</td></tr>
+        <tr><td>Backend</td><td>localhost:8000</td><td>Fly.io</td><td>Native WebSocket support, minimal cold starts</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "dark",
+    themeVariables: {
+      background: "#18181b",
+      primaryColor: "#1e3a5f",
+      primaryTextColor: "#f4f4f5",
+      primaryBorderColor: "#3b82f6",
+      lineColor: "#71717a",
+      secondaryColor: "#1a2e1a",
+      tertiaryColor: "#2d1f3b",
+      edgeLabelBackground: "#18181b",
+      clusterBkg: "#27272a",
+      clusterBorder: "#3f3f46",
+      titleColor: "#f4f4f5",
+      fontFamily: "ui-monospace, monospace",
+    },
+    flowchart: { curve: "basis", padding: 20 },
+    sequence: { actorFontFamily: "ui-monospace, monospace", messageFontFamily: "ui-monospace, monospace" },
+  });
+
+  function showTab(name) {
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("tab-" + name).classList.add("active");
+    event.target.classList.add("active");
+  }
+</script>
+</body>
+</html>

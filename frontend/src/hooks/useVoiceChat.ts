@@ -17,6 +17,12 @@ export interface LatencyInfo {
 
 export type ConnectionState = "connecting" | "connected" | "disconnected" | "error";
 
+function wsSend(ws: WebSocket | null, data: string | Blob) {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(data);
+  }
+}
+
 export function useVoiceChat(sessionId: string) {
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -32,14 +38,14 @@ export function useVoiceChat(sessionId: string) {
   const [latency, setLatency] = useState<LatencyInfo | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const addMessage = useCallback((role: "user" | "assistant", content: string) => {
+  const addMessageRef = useRef((role: "user" | "assistant", content: string) => {
     setMessages((prev) => [
       ...prev,
       { id: `${Date.now()}-${Math.random()}`, role, content },
     ]);
-  }, []);
+  });
 
-  const playNextInQueue = useCallback(async () => {
+  const playNextInQueueRef = useRef(async () => {
     if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
     isPlayingRef.current = true;
 
@@ -54,72 +60,126 @@ export function useVoiceChat(sessionId: string) {
       source.connect(ctx.destination);
       source.onended = () => {
         isPlayingRef.current = false;
-        playNextInQueue();
+        playNextInQueueRef.current();
       };
       source.start();
     } catch (err) {
       console.error("Audio decode error:", err);
       isPlayingRef.current = false;
-      playNextInQueue();
+      playNextInQueueRef.current();
     }
-  }, []);
+  });
 
   useEffect(() => {
-    const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000"}/ws/${sessionId}`;
-    const ws = new WebSocket(wsUrl);
-    ws.binaryType = "arraybuffer";
-    wsRef.current = ws;
+    let active = true;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
-    ws.onopen = () => setConnectionState("connected");
-    ws.onclose = () => setConnectionState("disconnected");
-    ws.onerror = () => setConnectionState("error");
+    const connect = () => {
+      if (!active) return;
 
-    ws.onmessage = (event) => {
-      if (event.data instanceof ArrayBuffer) {
-        audioQueueRef.current.push(event.data.slice(0));
-        playNextInQueue();
+      const existing = wsRef.current;
+      if (
+        existing &&
+        (existing.readyState === WebSocket.CONNECTING ||
+          existing.readyState === WebSocket.OPEN)
+      ) {
         return;
       }
 
-      const msg = JSON.parse(event.data as string);
+      const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL ?? "ws://127.0.0.1:8000"}/ws/${sessionId}`;
+      const ws = new WebSocket(wsUrl);
+      ws.binaryType = "arraybuffer";
+      wsRef.current = ws;
+      setConnectionState("connecting");
 
-      switch (msg.type) {
-        case "transcript":
-          addMessage("user", msg.text);
-          setIsProcessing(true);
-          setCurrentAssistantMsg("");
-          break;
+      const connectTimeout = window.setTimeout(() => {
+        if (active && wsRef.current === ws && ws.readyState !== WebSocket.OPEN) {
+          console.error("WebSocket connection timed out:", wsUrl);
+          ws.close();
+          setConnectionState("error");
+        }
+      }, 5000);
 
-        case "token":
-          setCurrentAssistantMsg((prev) => prev + msg.text);
-          break;
+      ws.onopen = () => {
+        window.clearTimeout(connectTimeout);
+        if (active && wsRef.current === ws) setConnectionState("connected");
+      };
 
-        case "response_complete":
-          setLatency(msg.latency);
-          setCurrentAssistantMsg((prev) => {
-            if (prev) addMessage("assistant", prev);
-            return "";
-          });
-          setIsProcessing(false);
-          break;
+      ws.onclose = () => {
+        window.clearTimeout(connectTimeout);
+        if (!active || wsRef.current !== ws) return;
+        wsRef.current = null;
+        setConnectionState("disconnected");
+        reconnectTimer = setTimeout(connect, 5000);
+      };
 
-        case "summary":
-          setSummary(msg.text);
-          break;
+      ws.onerror = () => {
+        if (active && wsRef.current === ws) setConnectionState("error");
+      };
 
-        case "stt_empty":
-          setIsProcessing(false);
-          break;
-      }
+      ws.onmessage = (event) => {
+        if (event.data instanceof ArrayBuffer) {
+          audioQueueRef.current.push(event.data.slice(0));
+          playNextInQueueRef.current();
+          return;
+        }
+
+        const msg = JSON.parse(event.data as string);
+
+        switch (msg.type) {
+          case "transcript":
+            addMessageRef.current("user", msg.text);
+            setIsProcessing(true);
+            setCurrentAssistantMsg("");
+            break;
+
+          case "token":
+            setCurrentAssistantMsg((prev) => prev + msg.text);
+            break;
+
+          case "response_complete":
+            setLatency(msg.latency);
+            setCurrentAssistantMsg((prev) => {
+              if (prev) addMessageRef.current("assistant", prev);
+              return "";
+            });
+            setIsProcessing(false);
+            break;
+
+          case "summary":
+            setSummary(msg.text);
+            break;
+
+          case "stt_empty":
+            setIsProcessing(false);
+            break;
+        }
+      };
     };
 
-    return () => ws.close();
-  }, [sessionId, addMessage, playNextInQueue]);
+    connect();
+
+    return () => {
+      active = false;
+      clearTimeout(reconnectTimer);
+      const ws = wsRef.current;
+      wsRef.current = null;
+      if (ws && ws.readyState !== WebSocket.CLOSED) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [sessionId]);
 
   const startListening = useCallback(async () => {
     if (isListening || isProcessing) return;
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (wsRef.current?.readyState !== WebSocket.OPEN) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       const recorder = new MediaRecorder(stream, {
         mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
           ? "audio/webm;codecs=opus"
@@ -127,8 +187,8 @@ export function useVoiceChat(sessionId: string) {
       });
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(e.data);
+        if (e.data.size > 0) {
+          wsSend(wsRef.current, e.data);
         }
       };
 
@@ -141,16 +201,20 @@ export function useVoiceChat(sessionId: string) {
   }, [isListening, isProcessing]);
 
   const stopListening = useCallback(() => {
-    if (!isListening) return;
-    mediaRecorderRef.current?.stop();
-    mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
-    mediaRecorderRef.current = null;
-    wsRef.current?.send(JSON.stringify({ type: "end_of_speech" }));
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || !isListening) return;
+
     setIsListening(false);
+    recorder.onstop = () => {
+      recorder.stream.getTracks().forEach((t) => t.stop());
+      mediaRecorderRef.current = null;
+      wsSend(wsRef.current, JSON.stringify({ type: "end_of_speech" }));
+    };
+    recorder.stop();
   }, [isListening]);
 
   const requestSummary = useCallback(() => {
-    wsRef.current?.send(JSON.stringify({ type: "request_summary" }));
+    wsSend(wsRef.current, JSON.stringify({ type: "request_summary" }));
   }, []);
 
   return {

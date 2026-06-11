@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useVoiceChat, type ConnectionState } from "@/hooks/useVoiceChat";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { SummaryPanel } from "./SummaryPanel";
@@ -17,10 +18,12 @@ function ConnectionDot({ state }: { state: ConnectionState }) {
 }
 
 interface Props {
-  sessionId: string;
+  sessionId?: string;
 }
 
-export function VoiceChat({ sessionId }: Props) {
+export function VoiceChat({ sessionId: sessionIdProp }: Props) {
+  const sessionIdRef = useRef(sessionIdProp ?? `session-${Math.random().toString(36).slice(2, 10)}`);
+  const sessionId = sessionIdRef.current;
   const {
     connectionState,
     isListening,
@@ -34,11 +37,16 @@ export function VoiceChat({ sessionId }: Props) {
     requestSummary,
   } = useVoiceChat(sessionId);
 
-  const micLabel = isListening
-    ? "Release to send"
-    : isProcessing
-    ? "Processing..."
-    : "Hold to speak";
+  const micLabel =
+    connectionState !== "connected"
+      ? connectionState === "connecting"
+        ? "Connecting to backend..."
+        : "Backend unavailable — restart uvicorn (see steps below)"
+      : isListening
+      ? "Release to send"
+      : isProcessing
+      ? "Processing..."
+      : "Hold to speak";
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
