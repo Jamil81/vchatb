@@ -1,0 +1,4 @@
+﻿# Secrets — excluded from AI indexing and agent file access
+.env
+.env.*
+!.env.example

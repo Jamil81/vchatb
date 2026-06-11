@@ -14,13 +14,16 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     claude_model: str = "claude-haiku-4-5-20251001"
 
-    # TTS
+    # TTS — local Piper
+    piper_path: str = "./piper/piper.exe"
+    piper_voice_en: str = "./piper/voices/en_US-amy-medium.onnx"
+    piper_voice_ar: str = "./piper/voices/ar_JO-kareem-medium.onnx"
+
+    # TTS — production Cartesia
     cartesia_api_key: str = ""
-    piper_executable: str = "piper"
-    piper_model: str = "en_US-lessac-medium"
 
     # DB
-    database_url: str = "sqlite:///./chatbot.db"
+    database_url: str = "sqlite:///./vchatb.db"
 
     class Config:
         env_file = ".env"

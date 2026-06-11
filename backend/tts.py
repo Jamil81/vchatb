@@ -54,9 +54,9 @@ async def _synthesize_piper(text: str) -> bytes:
         try:
             proc = subprocess.run(
                 [
-                    settings.piper_executable,
+                    settings.piper_path,
                     "--model",
-                    settings.piper_model,
+                    settings.piper_voice_en,
                     "--output-file",
                     tmp,
                 ],

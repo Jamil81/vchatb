@@ -1,0 +1,4 @@
+# Secrets — excluded from Claude Code indexing and file access
+.env
+.env.*
+!.env.example

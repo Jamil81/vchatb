@@ -6,28 +6,28 @@ See [persona-jamlo.md](persona-jamlo.md) for full persona spec.
 
 ---
 
-## Current Step: 2 — Scaffold project structure
+## Current Step: 10 — Test backend locally
 
 ---
 
 ## Steps
 
 - [x] 1. Research & design — architecture, stack decisions, STT/TTS/LLM comparisons, cost estimate
-- [ ] **2. Scaffold project structure — folders, docker-compose, .env.example, .gitignore**
-- [ ] 3. Register APIs — Anthropic, Deepgram, Cartesia, Azure (get keys ready)
-- [ ] 4. Build backend: FastAPI app skeleton — main.py, config.py, WebSocket handler stub
-- [ ] 5. Build backend: STT module (stt.py) — faster-whisper local, Deepgram prod, env-switched
-- [ ] 6. Build backend: LLM module (llm.py) — Ollama local, Claude prod, chat_stream() abstraction
-- [ ] 7. Build backend: TTS module (tts.py) — Piper local, Cartesia (EN) + Azure (AR) prod
-- [ ] 8. Build backend: memory module (memory.py) — SQLite session persistence, conversation history
-- [ ] 9. Wire backend: connect STT → LLM → TTS pipeline in WebSocket handler
-- [ ] 10. Test backend locally — Postman/wscat WebSocket test, verify round-trip audio
-- [ ] 11. Build frontend: Next.js app skeleton — layout, page structure, env config
-- [ ] 12. Build frontend: VoiceRecorder component — MediaRecorder, 250ms chunks, WebSocket send
-- [ ] 13. Build frontend: audio playback — AudioContext, receive TTS bytes, play streaming audio
-- [ ] 14. Build frontend: Transcript panel — display STT partials in real time
-- [ ] 15. Build frontend: Summary panel — rolling 3-bullet summary every 4-6 turns
-- [ ] 16. Wire frontend to backend — connect WebSocket, test full local flow
+- [x] 2. Scaffold project structure — folders, docker-compose, .env.example, .gitignore
+- [ ] **3. Local dev setup — install Ollama, faster-whisper, Piper TTS, Node deps (see docs/local-setup.md)**
+- [ ] 4. Build backend: FastAPI app skeleton — main.py, config.py, WebSocket handler stub ✅ done
+- [ ] 5. Build backend: STT module (stt.py) — faster-whisper local, Deepgram prod, env-switched ✅ done
+- [ ] 6. Build backend: LLM module (llm.py) — Ollama local, Claude prod, Jamlo persona ✅ done
+- [ ] 7. Build backend: TTS module (tts.py) — Piper local, Cartesia (EN) prod ✅ done
+- [ ] 8. Build backend: memory module (memory.py) — SQLite session persistence, conversation history ✅ done
+- [ ] 9. Wire backend: connect STT → LLM → TTS pipeline in WebSocket handler ✅ done
+- [ ] **10. Local dev setup + test backend — install deps, start uvicorn, wscat smoke test**
+- [ ] 11. Build frontend: Next.js app skeleton — layout, page structure, env config ✅ done
+- [ ] 12. Build frontend: VoiceRecorder component — MediaRecorder, 250ms chunks, WebSocket send ✅ done
+- [ ] 13. Build frontend: audio playback — AudioContext, receive TTS bytes, play streaming audio ✅ done
+- [ ] 14. Build frontend: Transcript panel — display STT partials in real time ✅ done
+- [ ] 15. Build frontend: Summary panel — rolling 3-bullet summary every 4-6 turns ✅ done
+- [ ] **16. Wire frontend to backend — connect WebSocket, test full local flow (next step after 10)**
 - [ ] 17. End-to-end local test — full voice conversation, verify latency, check Arabic
 - [ ] 18. Add latency logging — log STT time, LLM first-token time, TTS TTFB to terminal
 - [ ] 19. Docker Compose — containerize backend, wire to host Ollama

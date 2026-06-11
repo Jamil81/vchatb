@@ -1,0 +1,21 @@
+---
+description: Do not read or expose .env files containing secrets
+alwaysApply: true
+---
+
+# Environment files — do not access
+
+Never read, open, grep, or otherwise access `.env` or other local environment files that may contain API keys and secrets.
+
+## Prohibited
+
+- Using the Read tool on `.env`, `.env.local`, `.env.development`, `.env.production`, or similar
+- Running shell commands that read those files (e.g. `cat .env`, `type .env`, `Get-Content .env`, `grep` against `.env*`)
+- Reproducing secret values in chat, commits, code, or edits
+
+## Allowed
+
+- Read `.env.example` for variable names and structure only (no real secrets)
+- Ask the user to confirm values or set them locally themselves
+
+If a task requires an env value, tell the user which variable to set — never read `.env` to obtain it.
