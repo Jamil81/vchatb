@@ -82,7 +82,7 @@ Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue |
 
 ### Frontend says "Connecting to backend..." forever
 
-1. Check `curl http://127.0.0.1:8000/health` responds.
+1. Check `curl ` responds.
 2. If it hangs: clear port 8000 (above) and restart the backend.
 3. Refresh the browser.
 
@@ -106,3 +106,4 @@ the backend, and watch for `Loading Whisper medium on cuda` in its terminal.
 ### First voice request is slow
 
 Normal — faster-whisper loads the model on first use (can take 30–60s). Watch the backend terminal for `Loading Whisper ...`, then `STT ...ms`.
+http://127.0.0.1:8000/health

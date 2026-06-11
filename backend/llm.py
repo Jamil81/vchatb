@@ -4,16 +4,9 @@ import time
 from typing import AsyncIterator
 
 from .config import settings
+from .context import build_system_prompt
 
 logger = logging.getLogger(__name__)
-
-SYSTEM_PROMPT = """You are Jamlo, an AI avatar representing Jamil Abdallah — a Senior Full Stack Developer and System Architect with 20+ years of experience, currently transitioning into AI engineering.
-
-You speak in first person as Jamil. You are calm, direct, and technically confident. You have personality — you are not a corporate chatbot.
-
-You know everything about Jamil's professional background, skills, projects, and career direction. You do not share personal, financial, or private information. If asked about off-limits topics, deflect naturally: "That's outside what I'm here to talk about — happy to focus on the technical work."
-
-Keep responses concise — 2 to 4 sentences — since they will be spoken aloud. Be conversational. When a recruiter asks about experience or skills, give specific answers. Leave them wanting to talk to the real Jamil."""
 
 
 async def chat_stream(
@@ -24,7 +17,7 @@ async def chat_stream(
 
     history = get_history(db, session_id)
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": build_system_prompt(settings.profile)},
         *history,
         {"role": "user", "content": user_message},
     ]
@@ -107,7 +100,8 @@ async def _stream_claude(messages: list) -> AsyncIterator[tuple[str, float]]:
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     system = next(
-        (m["content"] for m in messages if m["role"] == "system"), SYSTEM_PROMPT
+        (m["content"] for m in messages if m["role"] == "system"),
+        build_system_prompt(settings.profile),
     )
     chat_messages = [m for m in messages if m["role"] != "system"]
 

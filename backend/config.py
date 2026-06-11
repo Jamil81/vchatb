@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # TTS — production Cartesia
     cartesia_api_key: str = ""
 
+    # Profile
+    profile: str = "jamlo"
+
     # DB
     database_url: str = "sqlite:///./vchatb.db"
 

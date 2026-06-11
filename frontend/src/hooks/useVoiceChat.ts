@@ -29,6 +29,9 @@ export function useVoiceChat(sessionId: string) {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
   const isPlayingRef = useRef(false);
+  // Accumulated outside React state: state updaters must stay pure (Strict
+  // Mode runs them twice, which previously duplicated finished messages).
+  const assistantMsgRef = useRef("");
 
   const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
   const [isListening, setIsListening] = useState(false);
@@ -130,19 +133,22 @@ export function useVoiceChat(sessionId: string) {
           case "transcript":
             addMessageRef.current("user", msg.text);
             setIsProcessing(true);
+            assistantMsgRef.current = "";
             setCurrentAssistantMsg("");
             break;
 
           case "token":
-            setCurrentAssistantMsg((prev) => prev + msg.text);
+            assistantMsgRef.current += msg.text;
+            setCurrentAssistantMsg(assistantMsgRef.current);
             break;
 
           case "response_complete":
             setLatency(msg.latency);
-            setCurrentAssistantMsg((prev) => {
-              if (prev) addMessageRef.current("assistant", prev);
-              return "";
-            });
+            if (assistantMsgRef.current) {
+              addMessageRef.current("assistant", assistantMsgRef.current);
+              assistantMsgRef.current = "";
+            }
+            setCurrentAssistantMsg("");
             setIsProcessing(false);
             break;
 
