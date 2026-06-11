@@ -71,7 +71,8 @@ async def _stream_ollama(messages: list) -> AsyncIterator[tuple[str, float]]:
     start = time.perf_counter()
     first = True
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    # Generous timeout: Ollama cold-loads the model (~5 GB) on first request.
+    async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=10)) as client:
         async with client.stream(
             "POST",
             f"{settings.ollama_base_url}/chat/completions",

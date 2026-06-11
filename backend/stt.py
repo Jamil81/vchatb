@@ -1,8 +1,10 @@
 import asyncio
 import logging
 import os
+import sys
 import tempfile
 import time
+from pathlib import Path
 
 from .config import settings
 
@@ -11,28 +13,61 @@ logger = logging.getLogger(__name__)
 _whisper_model = None
 
 
+def _register_nvidia_dll_dirs() -> None:
+    """Make pip-installed NVIDIA libs (nvidia-cublas-cu12, nvidia-cudnn-cu12)
+    visible to ctranslate2 on Windows."""
+    if sys.platform != "win32":
+        return
+    nvidia_root = Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
+    if not nvidia_root.is_dir():
+        return
+    for bin_dir in nvidia_root.glob("*/bin"):
+        os.add_dll_directory(str(bin_dir))
+
+
+def _cuda_available() -> bool:
+    try:
+        import ctranslate2
+
+        return ctranslate2.get_cuda_device_count() > 0
+    except Exception:
+        return False
+
+
+def _build_model(device: str):
+    from faster_whisper import WhisperModel
+
+    compute = "float16" if device == "cuda" else "int8"
+    logger.info(f"Loading Whisper {settings.whisper_model} on {device}")
+    return WhisperModel(settings.whisper_model, device=device, compute_type=compute)
+
+
+def _is_gpu_lib_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    return "dll" in msg or "cublas" in msg or "cudnn" in msg or "cuda" in msg
+
+
 def _get_whisper_model():
     global _whisper_model
     if _whisper_model is None:
-        from faster_whisper import WhisperModel
+        _register_nvidia_dll_dirs()
 
         device = settings.whisper_device
-        compute = "float16" if device == "cuda" else "int8"
-        if device == "cuda":
-            try:
-                import torch
+        if device == "cuda" and not _cuda_available():
+            logger.warning("CUDA requested but not available — falling back to CPU")
+            device = "cpu"
 
-                if not torch.cuda.is_available():
-                    device = "cpu"
-                    compute = "int8"
-            except ImportError:
-                device = "cpu"
-                compute = "int8"
-
-        logger.info(f"Loading Whisper {settings.whisper_model} on {device}")
-        _whisper_model = WhisperModel(
-            settings.whisper_model, device=device, compute_type=compute
-        )
+        try:
+            _whisper_model = _build_model(device)
+        except Exception as e:
+            if device == "cuda" and _is_gpu_lib_error(e):
+                logger.error(
+                    f"GPU load failed ({e}) — falling back to CPU. "
+                    "Install GPU libs: pip install nvidia-cublas-cu12 nvidia-cudnn-cu12"
+                )
+                _whisper_model = _build_model("cpu")
+            else:
+                raise
     return _whisper_model
 
 
@@ -53,13 +88,29 @@ async def _transcribe_whisper(audio_bytes: bytes) -> str:
     model = _get_whisper_model()
     loop = asyncio.get_event_loop()
 
+    def _transcribe_file(m, path: str) -> str:
+        segments, _ = m.transcribe(path, vad_filter=True)
+        return " ".join(s.text.strip() for s in segments).strip()
+
     def _run() -> str:
+        global _whisper_model
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as f:
             f.write(audio_bytes)
             tmp = f.name
         try:
-            segments, _ = model.transcribe(tmp, vad_filter=True)
-            return " ".join(s.text.strip() for s in segments).strip()
+            try:
+                return _transcribe_file(model, tmp)
+            except RuntimeError as e:
+                # GPU libs can be missing even when CUDA is detected — the
+                # failure only surfaces at inference time.
+                if not _is_gpu_lib_error(e):
+                    raise
+                logger.error(
+                    f"GPU inference failed ({e}) — rebuilding on CPU. "
+                    "Install GPU libs: pip install nvidia-cublas-cu12 nvidia-cudnn-cu12"
+                )
+                _whisper_model = _build_model("cpu")
+                return _transcribe_file(_whisper_model, tmp)
         finally:
             os.unlink(tmp)
 

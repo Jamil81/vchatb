@@ -86,6 +86,23 @@ Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue |
 2. If it hangs: clear port 8000 (above) and restart the backend.
 3. Refresh the browser.
 
+## One-time: enable GPU + medium model (run on a fast connection)
+
+Two downloads (~2.6 GB total), then Whisper runs on the RTX 3050:
+
+```powershell
+cd j:\laragon\www\bots\vchatb
+
+# 1. GPU libraries for ctranslate2 (~1.1 GB)
+.\venv\Scripts\pip.exe install nvidia-cublas-cu12 nvidia-cudnn-cu12
+
+# 2. Whisper medium model (~1.5 GB, cached after first download)
+.\venv\Scripts\python.exe -c "from huggingface_hub import snapshot_download; print(snapshot_download('Systran/faster-whisper-medium'))"
+```
+
+Then edit `.env`: set `WHISPER_MODEL=medium` (keep `WHISPER_DEVICE=cuda`), restart
+the backend, and watch for `Loading Whisper medium on cuda` in its terminal.
+
 ### First voice request is slow
 
 Normal — faster-whisper loads the model on first use (can take 30–60s). Watch the backend terminal for `Loading Whisper ...`, then `STT ...ms`.
